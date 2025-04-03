@@ -20,6 +20,21 @@ h2 {
   margin-top: 0.5rem;
 }
 
+.launch-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh; /* Adjust based on your needs */
+  text-align: center;
+}
+
+.centered-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .playlist-container {
   display: flex;
   flex-wrap: wrap;
@@ -27,6 +42,7 @@ h2 {
   gap: 20px;
   max-width: 1280px;
   margin: 0 auto;
+  margin-bottom: 50px;
 }
 
 .playlist-card {
@@ -50,6 +66,19 @@ body.dark-mode .playlist-card:hover {
   transform: scale(1.05);
   box-shadow: 0 4px 4px rgba(255, 255, 255, 0.0);
   background-color: #3a3a3a;
+}
+
+.title-wrapper {
+  text-align: center;
+}
+
+.title-wrapper h1, .title-wrapper h2 {
+  margin: 0;
+}
+
+.title-wrapper h2 {
+  font-size: 1.2rem;
+  margin-top: 5px;
 }
 
 .album-grid {
@@ -91,14 +120,10 @@ body.dark-mode .playlist-card:hover {
   align-items: center;
 }
 
-.price {
+.price strong {
   margin: 0;
   font-size: 18px;
   color: #1DB954;
-}
-
-.price strong {
-  font-size: 18px;
 }
 
 .buy-now {
@@ -270,7 +295,8 @@ body.dark-mode .playlist-card:hover {
 
 .footer-logo {
   width: 200px;
-  height: 80px;
+  height: auto;
+  vertical-align: middle;
   margin-top: 5px;
 }
 

@@ -226,7 +226,7 @@ app.get('/checkout', requireAuth, async (req, res) => {
       line_items: [{
         price_data: {
           currency: 'usd',
-          product_data: { name: set.name },
+          product_data: { name: `Access to ${set.name} Curation` },
           unit_amount: set.price
         },
         quantity: 1
@@ -295,8 +295,9 @@ app.post('/save-to-spotify', requireAuth, async (req, res) => {
       const playlist = await spotifyApi.getPlaylist(playlistId);
       const tracks = playlist.body.tracks.items.map(item => item.track.uri);
       const newPlaylist = await spotifyApi.createPlaylist(userId, {
-        name: playlist.body.name || `Playlist from set ${setId}`,
-        public: false
+        name: `${set.name} - Curated by illegible.ink`, 
+        public: false,
+        description: 'Curated playlist by illegible.ink, delivered via Hip Hop Grammar app'
       });
       await spotifyApi.addTracksToPlaylist(newPlaylist.body.id, tracks);
       newPlaylistIds.push(newPlaylist.body.id);
@@ -304,7 +305,7 @@ app.post('/save-to-spotify', requireAuth, async (req, res) => {
     res.json({ success: true, playlistId: newPlaylistIds[0] });
   } catch (error) {
     console.error('Save error:', error.message);
-    res.status(500).json({ error: 'Failed to save playlists' });
+    res.status(500).json({ error: 'Failed to save curated playlists' });
   }
 });
 

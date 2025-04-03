@@ -37,11 +37,11 @@
         </div>
         <div class="playlist-info">
           <% if (set.price && !set.isFree) { %>
-            <p class="price"><strong>$<%= (set.price / 100).toFixed(0) %></strong></p>
+            <p class="price"><strong>$<%= (set.price / 100).toFixed(0) %> for curation</strong></p>
             <% if (purchasedSets.includes(setId)) { %>
               <button class="save-to-spotify" data-set-id="<%= setId %>"><span class="save-icon">+</span></button>
             <% } else { %>
-              <button class="buy-now" data-set-id="<%= setId %>">Buy Now</button>
+              <button class="buy-now" data-set-id="<%= setId %>"><strong>Unlock</strong></button>
             <% } %>
           <% } else { %>
             <p class="price"> </p>
@@ -56,7 +56,7 @@
     <a href="/privacy">Privacy Policy</a>
     <a href="/terms">Terms of Use</a>
     <form action="/delete-data" method="POST"><button type="submit" class="delete-button">Delete My Data</button></form>
-    <span>Powered by <img src="/logo.svg" alt="Spotify" class="footer-logo"></span>
+    <span>Powered by:  <a href="https://www.spotify.com" target="="_blank"><img src="/logo.svg" alt="Spotify" class="footer-logo"></a></span>
   </footer>
 
   <script>
