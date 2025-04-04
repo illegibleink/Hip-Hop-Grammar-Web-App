@@ -8,6 +8,7 @@ const playlistSets = require('./playlists');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const crypto = require('crypto');
+const cors = require('cors');
 
 console.log(`Loaded ${Object.keys(playlistSets).length} playlist sets`);
 
@@ -15,10 +16,34 @@ const app = express();
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
-app.use(express.static('public'));
+
+// Serve static files with explicit MIME type for .js and logging
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'text/javascript');
+    }
+  }
+}));
+
+// Log static file requests for debugging
+app.use((req, res, next) => {
+  if (req.path === '/scripts.js' || req.path === '/images/placeholder.jpg') {
+    console.log(`Requesting ${req.path} - Resolved to: ${path.join(__dirname, 'public', req.path)}`);
+  }
+  next();
+});
+
 app.use(express.json());
 app.use(morgan('dev', { skip: (req) => req.url === '/success' }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production'
+    ? ['https://illegible.ink', 'https://app.illegible.ink']
+    : 'http://localhost:5173',
+  methods: ['GET', 'POST'],
+  credentials: true
+}));
 
 // SQLite setup
 const db = new sqlite3.Database('./purchases.db', sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
@@ -51,29 +76,51 @@ function generateCodeVerifier() {
 }
 
 function generateCodeChallenge(verifier) {
-  return crypto.createHash('sha256')
-    .update(verifier)
-    .digest('base64url');
+  return crypto.createHash('sha256').update(verifier).digest('base64url');
 }
 
 function generateState() {
   return crypto.randomBytes(16).toString('hex');
 }
 
-// In-memory storage for auth data (use sessions in production)
+// Spotify-compliant retry logic
+async function retry(fn, retries = 3, delay = 1000) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const status = error.statusCode || (error.response && error.response.status);
+      if (status === 429) {
+        const retryAfter = parseInt(error.headers?.['retry-after']) * 1000 || delay * attempt;
+        console.warn(`Rate limited. Retrying after ${retryAfter}ms`);
+        await new Promise(resolve => setTimeout(resolve, retryAfter));
+      } else if (status === 401) {
+        throw new Error('Authentication expired');
+      } else if (status >= 400 && status < 500) {
+        throw error;
+      } else if (attempt === retries) {
+        throw error;
+      }
+      console.warn(`Attempt ${attempt} failed: ${error.message}. Retrying in ${delay * attempt}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay * attempt));
+    }
+  }
+}
+
+// In-memory storage for auth data
 const authStore = new Map();
 
 // Authentication middleware
 const requireAuth = async (req, res, next) => {
   try {
     if (!spotifyApi.getAccessToken()) throw new Error('No access token');
-    await spotifyApi.getMe();
+    await retry(() => spotifyApi.getMe());
     next();
   } catch (error) {
     console.error('Auth error:', error.message);
     spotifyApi.setAccessToken(null);
     return req.method === 'POST'
-      ? res.status(401).json({ error: 'Authentication required' })
+      ? res.status(401).json({ code: 401, message: 'Authentication required' })
       : res.redirect('/login');
   }
 };
@@ -83,7 +130,7 @@ app.get('/', (req, res) => res.render('launch'));
 
 app.get('/playlists', requireAuth, async (req, res) => {
   try {
-    const user = await spotifyApi.getMe();
+    const user = await retry(() => spotifyApi.getMe());
     const userId = user.body.id;
 
     const purchases = await new Promise((resolve, reject) => {
@@ -100,7 +147,7 @@ app.get('/playlists', requireAuth, async (req, res) => {
         return [setId, {
           ...set,
           albumArts,
-          isFree: index < 10, // Mark first 10 as free
+          isFree: index < 10,
           playlists
         }];
       })
@@ -115,15 +162,16 @@ app.get('/playlists', requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Playlists error:', error.stack);
-    res.status(500).send('Internal Server Error');
+    res.status(500).json({ code: 500, message: 'Internal server error' });
   }
 });
 
 async function getAlbumArts(playlists) {
   const albumArts = new Set();
+  const fallbackImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=='; // 1x1 gray pixel
   for (const playlistId of playlists) {
     try {
-      const playlist = await spotifyApi.getPlaylist(playlistId);
+      const playlist = await retry(() => spotifyApi.getPlaylist(playlistId));
       for (const item of playlist.body.tracks.items.slice(0, 4)) {
         const art = item.track?.album?.images[0]?.url;
         if (art && albumArts.size < 4) albumArts.add(art);
@@ -134,7 +182,7 @@ async function getAlbumArts(playlists) {
       console.error(`Playlist fetch error ${playlistId}:`, err.message);
     }
   }
-  while (albumArts.size < 4) albumArts.add('/images/placeholder.jpg');
+  while (albumArts.size < 4) albumArts.add(fallbackImage);
   return Array.from(albumArts);
 }
 
@@ -166,26 +214,24 @@ app.get('/callback', async (req, res) => {
 
   if (error) {
     console.error('Spotify auth error:', error);
-    return res.status(400).send(`Authentication failed: ${error}`);
+    return res.status(400).json({ code: 400, message: `Authentication failed: ${error}` });
   }
 
   if (!code || !state) {
     console.error('Missing code or state:', { code, state });
-    return res.status(400).send('Missing authorization code or state');
+    return res.status(400).json({ code: 400, message: 'Missing authorization code or state' });
   }
 
   const codeVerifier = authStore.get(state);
   if (!codeVerifier) {
     console.error('Invalid or expired state:', state);
-    return res.status(400).send('Invalid or expired state parameter');
+    return res.status(400).json({ code: 400, message: 'Invalid or expired state parameter' });
   }
 
   try {
     const response = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code: code,
@@ -205,12 +251,12 @@ app.get('/callback', async (req, res) => {
     spotifyApi.setAccessToken(data.access_token);
     spotifyApi.setRefreshToken(data.refresh_token || '');
 
-    authStore.delete(state); // Clean up
+    authStore.delete(state);
     console.log('Authentication successful, access token set');
     res.redirect('/playlists');
   } catch (error) {
     console.error('Callback error:', error.message);
-    res.status(400).send(`Authentication failed: ${error.message}`);
+    res.status(400).json({ code: 400, message: `Authentication failed: ${error.message}` });
   }
 });
 
@@ -220,7 +266,7 @@ app.get('/checkout', requireAuth, async (req, res) => {
   if (!set || set.isFree) return res.redirect('/playlists');
 
   try {
-    const user = await spotifyApi.getMe();
+    const user = await retry(() => spotifyApi.getMe());
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
@@ -238,7 +284,7 @@ app.get('/checkout', requireAuth, async (req, res) => {
     res.json({ url: session.url });
   } catch (error) {
     console.error('Checkout error:', error.message);
-    res.status(500).json({ error: 'Checkout failed' });
+    res.status(500).json({ code: 500, message: 'Checkout failed' });
   }
 });
 
@@ -267,56 +313,52 @@ app.get('/success', async (req, res) => {
 app.post('/save-to-spotify', requireAuth, async (req, res) => {
   const { setId } = req.body;
   const set = playlistSets[setId];
-  if (!set) return res.status(400).json({ error: 'Invalid set' });
+  if (!set) return res.status(400).json({ code: 400, message: 'Invalid set' });
 
   try {
-    const user = await spotifyApi.getMe();
+    const user = await retry(() => spotifyApi.getMe());
     const userId = user.body.id;
 
-    // Check if the set is free (first 10 sets)
     const setIndex = Object.keys(playlistSets).indexOf(setId);
     const isFree = setIndex >= 0 && setIndex < 10;
 
-    // Only check purchase if the set is not free
     if (!isFree) {
       const purchase = await new Promise((resolve) => {
         db.get('SELECT setId FROM purchases WHERE userId = ? AND setId = ?', [userId, setId], (err, row) => {
           resolve(err ? null : row);
         });
       });
-      if (!purchase) return res.status(403).json({ error: 'Set not purchased' });
+      if (!purchase) return res.status(403).json({ code: 403, message: 'Set not purchased' });
     }
 
     const playlists = Array.isArray(set.playlists) ? set.playlists : (set.playlists ? [set.playlists] : []);
-    if (!playlists.length) return res.status(400).json({ error: 'No playlists in set' });
+    if (!playlists.length) return res.status(400).json({ code: 400, message: 'No playlists in set' });
 
     const newPlaylistIds = [];
     for (const playlistId of playlists) {
-      const playlist = await spotifyApi.getPlaylist(playlistId);
+      const playlist = await retry(() => spotifyApi.getPlaylist(playlistId));
       const tracks = playlist.body.tracks.items.map(item => item.track.uri);
-      const newPlaylist = await spotifyApi.createPlaylist(userId, {
-        name: `${set.name} - Curated by illegible.ink`, 
+      const newPlaylist = await retry(() => spotifyApi.createPlaylist(userId, {
+        name: `${set.name} - Curated by illegible.ink`,
         public: false,
         description: 'Curated playlist by illegible.ink, delivered via Hip Hop Grammar app'
-      });
-      await spotifyApi.addTracksToPlaylist(newPlaylist.body.id, tracks);
+      }));
+      await retry(() => spotifyApi.addTracksToPlaylist(newPlaylist.body.id, tracks));
       newPlaylistIds.push(newPlaylist.body.id);
     }
     res.json({ success: true, playlistId: newPlaylistIds[0] });
   } catch (error) {
     console.error('Save error:', error.message);
-    res.status(500).json({ error: 'Failed to save curated playlists' });
+    const status = error.statusCode || 500;
+    res.status(status).json({
+      code: status,
+      message: status === 429 ? 'Rate limit exceeded, please try again later' : 'Failed to save curated playlists'
+    });
   }
 });
 
-// Add these new routes before the logout route
-app.get('/privacy', (req, res) => {
-  res.render('privacy');
-});
-
-app.get('/terms', (req, res) => {
-  res.render('terms');
-});
+app.get('/privacy', (req, res) => res.render('privacy'));
+app.get('/terms', (req, res) => res.render('terms'));
 
 app.get('/logout', (req, res) => {
   spotifyApi.setAccessToken(null);
@@ -325,7 +367,7 @@ app.get('/logout', (req, res) => {
 
 app.use((err, req, res, next) => {
   console.error('Server error:', err.stack);
-  res.status(500).json({ error: 'Internal server error' });
+  res.status(500).json({ code: 500, message: 'Internal server error' });
 });
 
 const PORT = process.env.PORT || 5173;

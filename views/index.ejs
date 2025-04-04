@@ -7,10 +7,9 @@
   <link rel="stylesheet" href="/style.css">
   <script src="https://js.stripe.com/v3/"></script>
 </head>
-<body>
+<body data-stripe-key="<%= stripePublishableKey %>" data-highlight-set-id="<%= highlightSetId %>">
   <div class="header-row">
     <div class="header-column logo-column">
-      
       <button id="theme-toggle" class="theme-toggle"><span class="theme-icon">☀</span></button>
     </div>
     <div class="header-column title-column">
@@ -56,101 +55,9 @@
     <a href="/privacy">Privacy Policy</a>
     <a href="/terms">Terms of Use</a>
     <form action="/delete-data" method="POST"><button type="submit" class="delete-button">Delete My Data</button></form>
-    <span>Powered by:  <a href="https://www.spotify.com" target="="_blank"><img src="/logo.svg" alt="Spotify" class="footer-logo"></a></span>
+    <span>Powered by: <a href="https://www.spotify.com" target="_blank"><img src="/logo.svg" alt="Spotify" class="footer-logo"></a></span>
   </footer>
 
-  <script>
-    const stripe = Stripe('<%= stripePublishableKey %>');
-    const buyButtons = document.querySelectorAll('.buy-now');
-    const saveButtons = document.querySelectorAll('.save-to-spotify');
-
-    buyButtons.forEach(button => {
-      button.addEventListener('click', async () => {
-        const setId = button.dataset.setId;
-        button.disabled = true;
-        button.textContent = 'Processing...';
-
-        try {
-          const response = await fetch(`/checkout?setId=${setId}`, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' }
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Checkout failed');
-          }
-
-          const { url } = await response.json();
-          if (!url) throw new Error('No checkout URL received');
-
-          window.location.href = url;
-        } catch (error) {
-          console.error('Checkout error:', error.message);
-          alert(`Failed to initiate payment: ${error.message}`);
-        } finally {
-          button.disabled = false;
-          button.textContent = 'Buy Now';
-        }
-      });
-    });
-
-    saveButtons.forEach(button => {
-      button.addEventListener('click', async () => {
-        const setId = button.dataset.setId;
-        button.disabled = true;
-
-        try {
-          const response = await fetch('/save-to-spotify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ setId })
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Save failed');
-          }
-
-          const data = await response.json();
-          if (data.success) {
-            button.classList.add('saved');
-            alert('Playlist saved to Spotify!');
-          }
-        } catch (error) {
-          console.error('Save error:', error.message);
-          alert(`Failed to save playlist: ${error.message}`);
-        } finally {
-          button.disabled = false;
-        }
-      });
-    });
-
-    const toggleButton = document.getElementById('theme-toggle');
-    const body = document.body;
-    const themeIcon = toggleButton.querySelector('.theme-icon');
-    const savedTheme = localStorage.getItem('theme') || 'light';
-
-    body.classList.add(`${savedTheme}-mode`);
-    themeIcon.textContent = savedTheme === 'dark' ? '☾' : '☀';
-
-    toggleButton.addEventListener('click', () => {
-      const isDark = body.classList.contains('dark-mode');
-      body.classList.replace(`${isDark ? 'dark' : 'light'}-mode`, `${isDark ? 'light' : 'dark'}-mode`);
-      themeIcon.textContent = isDark ? '☀' : '☾';
-      localStorage.setItem('theme', isDark ? 'light' : 'dark');
-    });
-
-    // Scroll to highlighted set after page load
-    window.addEventListener('load', () => {
-      const highlightSetId = '<%= highlightSetId %>';
-      if (highlightSetId) {
-        const highlightedElement = document.querySelector(`.playlist-card[data-set-id="${highlightSetId}"]`);
-        if (highlightedElement) {
-          highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
-    });
-  </script>
+  <script src="/scripts.js"></script>
 </body>
 </html>
