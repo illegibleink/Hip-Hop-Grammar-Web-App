@@ -1,10 +1,30 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const stripe = Stripe(document.body.dataset.stripeKey);
-  const buyButtons = document.querySelectorAll('.buy-now');
-  const saveButtons = document.querySelectorAll('.save-to-spotify');
+  // Theme handling: default to dark mode, persist across pages
   const toggleButton = document.getElementById('theme-toggle');
   const body = document.body;
-  const themeIcon = toggleButton.querySelector('.theme-icon');
+  const themeIcon = toggleButton ? toggleButton.querySelector('.theme-icon') : null;
+
+  // Apply saved theme or default to dark
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  body.classList.add(`${savedTheme}-mode`);
+  if (themeIcon) {
+    themeIcon.textContent = savedTheme === 'dark' ? '☀' : '☾';
+  }
+
+  // Toggle event listener
+  if (toggleButton) {
+    toggleButton.addEventListener('click', () => {
+      const isDark = body.classList.contains('dark-mode');
+      body.classList.replace(`${isDark ? 'dark' : 'light'}-mode`, `${isDark ? 'light' : 'dark'}-mode`);
+      themeIcon.textContent = isDark ? '☾' : '☀';
+      localStorage.setItem('theme', isDark ? 'light' : 'dark');
+    });
+  }
+
+  // Stripe and playlist-specific logic (only applies to index.ejs)
+  const stripe = Stripe(document.body.dataset.stripeKey || '');
+  const buyButtons = document.querySelectorAll('.buy-now');
+  const saveButtons = document.querySelectorAll('.save-to-spotify');
 
   buyButtons.forEach(button => {
     button.addEventListener('click', async () => {
@@ -68,17 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  const savedTheme = localStorage.getItem('theme') || 'light';
-  body.classList.add(`${savedTheme}-mode`);
-  themeIcon.textContent = savedTheme === 'dark' ? '☾' : '☀';
-
-  toggleButton.addEventListener('click', () => {
-    const isDark = body.classList.contains('dark-mode');
-    body.classList.replace(`${isDark ? 'dark' : 'light'}-mode`, `${isDark ? 'light' : 'dark'}-mode`);
-    themeIcon.textContent = isDark ? '☀' : '☾';
-    localStorage.setItem('theme', isDark ? 'light' : 'dark');
-  });
-
+  // Scroll to highlighted set (only on index.ejs)
   const highlightSetId = document.body.dataset.highlightSetId;
   if (highlightSetId) {
     const highlightedElement = document.querySelector(`.playlist-card[data-set-id="${highlightSetId}"]`);

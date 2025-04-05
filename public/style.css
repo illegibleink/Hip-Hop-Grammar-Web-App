@@ -42,7 +42,8 @@ h2 {
   gap: 20px;
   max-width: 1280px;
   margin: 0 auto;
-  margin-bottom: 50px;
+  margin-top: 80px;
+  margin-bottom: 80px;
 }
 
 .playlist-card {
@@ -87,7 +88,7 @@ body.dark-mode .playlist-card:hover {
   height: 300px;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 2px;
+  gap: 0px;
 }
 
 .album-art {
@@ -178,16 +179,28 @@ body.dark-mode .playlist-card:hover {
   text-align: center;
 }
 
+.launch-image {
+  width: 400px;
+  height: auto;
+  margin-bottom: 20px;
+}
+
 .spotify-button {
   display: inline-block;
   padding: 10px 20px;
   border: none;
   border-radius: 5px;
-  cursor: default;
+  cursor: pointer; /* Changed from default to pointer for consistency */
   font-size: 14px;
   background-color: #1DB954;
   color: white;
   text-decoration: none;
+  margin-top: 40px;
+  transition: background-color 0.2s; /* Added hover effect */
+}
+
+.spotify-button:hover {
+  background-color: #1aa34a;
 }
 
 .logout-button {
@@ -205,6 +218,20 @@ body.dark-mode .playlist-card:hover {
 
 .logout-button:hover {
   background-color: #666;
+}
+
+.exclusive-text {
+  display: inline-flex;
+  align-items: center;
+  font-size: 16px;
+  color: #888;
+}
+
+.exclusive-logo {
+  height: 30px; /* Matches logout button’s padding-based height approximation */
+  width: auto;
+  margin-left: 7px;
+  vertical-align: middle;
 }
 
 .delete-button {
@@ -235,6 +262,7 @@ body.dark-mode .playlist-card:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 40px;
   margin-bottom: 20px;
   max-width: 980px;
   margin-left: auto;
@@ -270,6 +298,12 @@ body.dark-mode .playlist-card:hover {
   flex-wrap: wrap;
 }
 
+.footer a {
+  color: #999;
+  margin: 0 10px;
+  text-decoration: none;
+}
+
 .footer-button {
   display: inline-block;
   padding: 10px 20px;
@@ -294,7 +328,7 @@ body.dark-mode .playlist-card:hover {
 }
 
 .footer-logo {
-  width: 200px;
+  width: 120px;
   height: auto;
   vertical-align: middle;
   margin-top: 5px;
