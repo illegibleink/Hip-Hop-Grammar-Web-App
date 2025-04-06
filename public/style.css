@@ -25,7 +25,7 @@ h2 {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  min-height: 80vh; /* Adjust based on your needs */
+  min-height: 80vh;
   text-align: center;
 }
 
@@ -175,6 +175,7 @@ body.dark-mode .playlist-card:hover {
 .launch-content {
   max-width: 800px;
   margin: 0 auto;
+  margin-bottom: 80px;
   padding: 20px;
   text-align: center;
 }
@@ -190,13 +191,13 @@ body.dark-mode .playlist-card:hover {
   padding: 10px 20px;
   border: none;
   border-radius: 5px;
-  cursor: pointer; /* Changed from default to pointer for consistency */
+  cursor: pointer;
   font-size: 14px;
   background-color: #1DB954;
   color: white;
   text-decoration: none;
   margin-top: 40px;
-  transition: background-color 0.2s; /* Added hover effect */
+  transition: background-color 0.2s;
 }
 
 .spotify-button:hover {
@@ -228,9 +229,9 @@ body.dark-mode .playlist-card:hover {
 }
 
 .exclusive-logo {
-  height: 30px; /* Matches logout button’s padding-based height approximation */
+  height: 30px;
   width: auto;
-  margin-left: 7px;
+  margin-left: 5px;
   vertical-align: middle;
 }
 
@@ -328,7 +329,7 @@ body.dark-mode .playlist-card:hover {
 }
 
 .footer-logo {
-  width: 120px;
+  width: 100px;
   height: auto;
   vertical-align: middle;
   margin-top: 5px;
@@ -413,7 +414,7 @@ body.dark-mode .footer {
   .header-row {
     flex-direction: column;
     text-align: center;
-    gap: 10px;
+    gap: 20px; /* Increased from 10px to 20px for equal vertical spacing */
   }
 
   .header-column {
@@ -466,6 +467,6 @@ body.dark-mode .footer {
 
   .footer {
     flex-direction: column;
-    gap: 10px;
+    gap: 20px; /* Increased from 10px to 20px for equal vertical spacing */
   }
 }

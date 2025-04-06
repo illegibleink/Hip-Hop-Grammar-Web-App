@@ -5,8 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Welcome To Hip Hop Grammar</title>
   <link rel="stylesheet" href="/style.css">
+  <script>
+    // Apply saved theme immediately before rendering
+    (function() {
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      document.body.classList.add(`${savedTheme}-mode`);
+    })();
+  </script>
 </head>
 <body>
+  <script>
+    // Apply saved theme immediately after body is available
+    (function() {
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      document.body.classList.add(`${savedTheme}-mode`);
+     // Check for success query parameter and show feedback
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('success') === 'data-deleted') {
+        alert('Your data has been successfully deleted.');
+        // Clear the query parameter from the URL without reloading
+        window.history.replaceState({}, document.title, '/');
+      } 
+    })();
+  </script>
   <div class="header-row">
     <div class="header-column logo-column">
       <button id="theme-toggle" class="theme-toggle"><span class="theme-icon">☀</span></button>
@@ -18,25 +39,25 @@
       </div>
     </div>
     <div class="header-column logout-column">
-      <span class="exclusive-text">Exclusively on <img src="/icon.svg" alt="Spotify" class="exclusive-logo"></span>
+      <span class="exclusive-text">Only on <img src="/icon.svg" alt="Spotify" class="exclusive-logo"></span>
     </div>
   </div>
 
   <div class="launch-content">
     <img src="/images/placeholder.svg" alt="Placeholder" class="launch-image">
-    <p>Discover expertly curated hip hop, powered by Spotify.</p>
-    <h3>How It Works:</h3>
-    <p>1. Launch the app using your Spotify credentials. Browse and save playlists directly to your account.
+    <h2>Expertly curated hip hop.</h1>
+    <h3>How it works:</h3>
+    <p>1. <strong>Launch the app</strong> using your Spotify credentials. Browse and save playlists directly to your account.
       Unlock additional curations starting at $5.</p>
-    <p>2. Once unlocked, click the "+" button to add the curated playlist to your Spotify library.</p>
-    <p>3. Open Spotify and enjoy your playlists, "Curated by illegible.ink", for your personal listening pleasure.</p>
+    <p>2. Once unlocked, <strong>Click the "+" button</strong>  to add the curated playlist to your Spotify library.</p>
+    <p>3. Open Spotify and <strong>enjoy your playlists</strong>, "Curated by illegible.ink", for your personal listening pleasure.</p>
     <a href="/login" class="spotify-button"><strong>Login with Spotify</strong></a>
   </div>
 
   <footer class="footer">
     <a href="/privacy">Privacy Policy</a>
     <a href="/terms">Terms of Use</a>
-    <span>Powered by: <a href="https://www.spotify.com" target="_blank"><img src="/logo.svg" alt="Spotify" class="footer-logo"></a></span>
+    <span>Powered by<a href="https://www.spotify.com" target="_blank"><img src="/logo.svg" alt="Spotify" class="footer-logo"></a></span>
   </footer>
 
   <script src="/scripts.js"></script>

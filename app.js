@@ -212,9 +212,10 @@ app.get('/login', (req, res) => {
 app.get('/callback', async (req, res) => {
   const { code, state, error } = req.query;
 
+  // Redirect to launch page if authentication is canceled
   if (error) {
     console.error('Spotify auth error:', error);
-    return res.status(400).json({ code: 400, message: `Authentication failed: ${error}` });
+    return res.redirect('/');
   }
 
   if (!code || !state) {
@@ -364,6 +365,17 @@ app.get('/logout', (req, res) => {
   spotifyApi.setAccessToken(null);
   res.redirect('/');
 });
+
+app.post('/delete-data', (req, res) => {
+  if (spotifyApi.getAccessToken()) {
+    db.run('DELETE FROM purchases WHERE userId = ?', [spotifyApi.getAccessToken()], (err) => {
+      if (err) console.error('Delete purchases error:', err);
+    });
+  }
+  spotifyApi.setAccessToken(null);
+  res.redirect('/?success=data-deleted'); // Add success query parameter
+});
+
 
 app.use((err, req, res, next) => {
   console.error('Server error:', err.stack);

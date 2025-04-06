@@ -8,6 +8,13 @@
   <script src="https://js.stripe.com/v3/"></script>
 </head>
 <body data-stripe-key="<%= stripePublishableKey %>" data-highlight-set-id="<%= highlightSetId %>">
+  <script>
+    // Apply saved theme immediately after body is available
+    (function() {
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      document.body.classList.add(`${savedTheme}-mode`);
+    })();
+  </script>
   <div class="header-row">
     <div class="header-column logo-column">
       <button id="theme-toggle" class="theme-toggle"><span class="theme-icon">☀</span></button>
@@ -55,7 +62,7 @@
     <form action="/delete-data" method="POST"><button type="submit" class="delete-button">Delete My Data</button></form>
     <a href="/privacy">Privacy Policy</a>
     <a href="/terms">Terms of Use</a>
-    <span>Powered by <a href="https://www.spotify.com" target="_blank"><img src="/logo.svg" alt="Spotify" class="footer-logo"></a></span>
+    <span>Powered by<a href="https://www.spotify.com" target="_blank"><img src="/logo.svg" alt="Spotify" class="footer-logo"></a></span>
   </footer>
 
   <script src="/scripts.js"></script>

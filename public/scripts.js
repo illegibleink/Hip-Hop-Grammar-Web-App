@@ -1,18 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // Theme handling: default to dark mode, persist across pages
+  // Theme toggle interactivity
   const toggleButton = document.getElementById('theme-toggle');
   const body = document.body;
   const themeIcon = toggleButton ? toggleButton.querySelector('.theme-icon') : null;
 
-  // Apply saved theme or default to dark
-  const savedTheme = localStorage.getItem('theme') || 'dark';
-  body.classList.add(`${savedTheme}-mode`);
-  if (themeIcon) {
-    themeIcon.textContent = savedTheme === 'dark' ? '☀' : '☾';
-  }
+  if (toggleButton && themeIcon) {
+    // Set initial icon based on current theme
+    const isDark = body.classList.contains('dark-mode');
+    themeIcon.textContent = isDark ? '☀' : '☾';
 
-  // Toggle event listener
-  if (toggleButton) {
     toggleButton.addEventListener('click', () => {
       const isDark = body.classList.contains('dark-mode');
       body.classList.replace(`${isDark ? 'dark' : 'light'}-mode`, `${isDark ? 'light' : 'dark'}-mode`);
@@ -21,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Stripe and playlist-specific logic (only applies to index.ejs)
+  // Stripe and playlist-specific logic (index.ejs only)
   const stripe = Stripe(document.body.dataset.stripeKey || '');
   const buyButtons = document.querySelectorAll('.buy-now');
   const saveButtons = document.querySelectorAll('.save-to-spotify');
@@ -88,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Scroll to highlighted set (only on index.ejs)
+  // Scroll to highlighted set (index.ejs only)
   const highlightSetId = document.body.dataset.highlightSetId;
   if (highlightSetId) {
     const highlightedElement = document.querySelector(`.playlist-card[data-set-id="${highlightSetId}"]`);
