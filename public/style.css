@@ -180,6 +180,14 @@ body.dark-mode .playlist-card:hover {
   text-align: center;
 }
 
+.launch-content .external-link {
+  color: #666;
+}
+
+body.dark-mode .launch-content .external-link {
+  color: #999;
+}
+
 .launch-image {
   width: 400px;
   height: auto;
@@ -202,6 +210,16 @@ body.dark-mode .playlist-card:hover {
 
 .spotify-button:hover {
   background-color: #1aa34a;
+}
+
+.home-logo {
+  display: inline-block;
+  padding: 10px 20px;
+  height: auto;
+  width: 40px;
+  border: none;
+  text-decoration: none;
+  
 }
 
 .logout-button {
@@ -233,6 +251,17 @@ body.dark-mode .playlist-card:hover {
   width: auto;
   margin-left: 5px;
   vertical-align: middle;
+}
+
+.privacy-content {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: left;
+  padding: 20px;
+}
+
+.privacy-content ul li {
+  margin-bottom: 15px;
 }
 
 .delete-button {

@@ -5,13 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Welcome To Hip Hop Grammar</title>
   <link rel="stylesheet" href="/style.css">
-  <script>
-    // Apply saved theme immediately before rendering
-    (function() {
-      const savedTheme = localStorage.getItem('theme') || 'dark';
-      document.body.classList.add(`${savedTheme}-mode`);
-    })();
-  </script>
 </head>
 <body>
   <script>
@@ -19,13 +12,11 @@
     (function() {
       const savedTheme = localStorage.getItem('theme') || 'dark';
       document.body.classList.add(`${savedTheme}-mode`);
-     // Check for success query parameter and show feedback
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('success') === 'data-deleted') {
         alert('Your data has been successfully deleted.');
-        // Clear the query parameter from the URL without reloading
         window.history.replaceState({}, document.title, '/');
-      } 
+      }
     })();
   </script>
   <div class="header-row">
@@ -35,7 +26,7 @@
     <div class="header-column title-column">
       <div class="title-wrapper">
         <h1>Hip Hop Grammar</h1>
-        <h2>An Original Anthology Of Rhythmic American Poetry</h2>
+        <h2>Curated Hip Hop Playlists, Powered by Spotify</h2>
       </div>
     </div>
     <div class="header-column logout-column">
@@ -44,14 +35,19 @@
   </div>
 
   <div class="launch-content">
-    <img src="/images/placeholder.svg" alt="Placeholder" class="launch-image">
-    <h2>Expertly curated hip hop.</h1>
-    <h3>How it works:</h3>
-    <p>1. <strong>Launch the app</strong> using your Spotify credentials. Browse and save playlists directly to your account.
-      Unlock additional curations starting at $5.</p>
-    <p>2. Once unlocked, <strong>Click the "+" button</strong>  to add the curated playlist to your Spotify library.</p>
-    <p>3. Open Spotify and <strong>enjoy your playlists</strong>, "Curated by illegible.ink", for your personal listening pleasure.</p>
-    <a href="/login" class="spotify-button"><strong>Login with Spotify</strong></a>
+    <img src="/images/placeholder.svg" alt="Hip Hop Grammar" class="launch-image">
+    <h1>Hip Hop Grammar</h1>
+    <h2>Curated Hip Hop Playlists, Powered by Spotify</h2>
+    <h3>How It Works:</h3>
+    <p>Connect your Spotify account to Hip Hop Grammar to browse and save curated playlists to your library.</p>
+    <p>Unlock premium playlist sets, crafted by illegible.ink, starting at $5 per set.</p>
+    <p>Save your favorites to Spotify with one click and enjoy them anytime.</p>
+    <div id="consent-modal" class="consent-modal">
+      <p>We use your Spotify account to deliver curated playlists. Accept to continue?</p>
+      <button onclick="acceptConsent()" class="spotify-button">Accept</button>
+      <button onclick="declineConsent()" class="delete-button">Decline</button>
+    </div>
+    <a href="/login" class="spotify-button" id="login-button" style="display: none;">Login with Spotify</a>
   </div>
 
   <footer class="footer">
@@ -60,6 +56,15 @@
     <span>Powered by<a href="https://www.spotify.com" target="_blank"><img src="/logo.svg" alt="Spotify" class="footer-logo"></a></span>
   </footer>
 
+  <script>
+    function acceptConsent() {
+      document.getElementById('consent-modal').style.display = 'none';
+      document.getElementById('login-button').style.display = 'inline-block';
+    }
+    function declineConsent() {
+      window.location.href = 'https://illegible.ink'; // Redirect to external site
+    }
+  </script>
   <script src="/scripts.js"></script>
 </body>
 </html>

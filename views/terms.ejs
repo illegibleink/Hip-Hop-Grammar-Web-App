@@ -3,66 +3,86 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Terms of Use</title>
+  <title>Terms of Use - Hip Hop Grammar</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+  <script>
+    // Apply saved theme immediately after body is available
+    (function() {
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      document.body.classList.add(`${savedTheme}-mode`);
+      // Check for success query parameter and show feedback
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('success') === 'data-deleted') {
+        alert('Your data has been successfully deleted.');
+        window.history.replaceState({}, document.title, '/terms');
+      }
+    })();
+  </script>
   <div class="header-row">
     <div class="header-column logo-column">
-      <img src="/spotify-logo.png" alt="Spotify Logo" class="spotify-logo">
+      <button id="theme-toggle" class="theme-toggle"><span class="theme-icon">☀</span></button>
     </div>
     <div class="header-column title-column">
-      <h1>Terms of Use</h1>
+      <div class="title-wrapper">
+        <h1>Hip Hop Grammar</h1>
+        <h2>Curated Hip Hop Playlists, Powered by Spotify</h2>
+      </div>
     </div>
-    <div class="header-column logout-column"></div>
+    <div class="header-column logout-column">
+      <% if (typeof spotifyApi !== 'undefined' && spotifyApi.getAccessToken()) { %>
+        <a href="/logout" class="logout-button">Logout</a>
+      <% } else { %>
+        <a href="/" class="home-button"><img src="/logo-home.svg" alt="Home" class="home-logo"></a>
+      <% } %>
+    </div>
   </div>
 
-  <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
-    <h2>Terms of Use</h2>
-    <p><strong>Effective Date:</strong> March 26, 2025</p>
-    <p>Welcome to illegible.ink ("we," "us," or "our"). These Terms of Use ("Terms") govern your use of our web application ("Service"), which allows you to purchase and save curated playlist sets to your Spotify account. By accessing or using the Service, you agree to these Terms.</p>
+  <div class="launch-content">
+    <h1>Terms of Use</h1>
+    <p>Welcome to Hip Hop Grammar, a music curation service by illegible.ink, powered by Spotify. These Terms of Use ("Terms") govern your access to and use of Hip Hop Grammar, including browsing, purchasing, and saving curated hip hop playlists to your Spotify account. By using our service, you agree to these Terms.</p>
 
-    <h3>1. Eligibility</h3>
-    <p>You must have an active Spotify subscription to use the Service, as it is powered by Spotify. Without a valid Spotify account, you cannot access or use our playlists.</p>
+    <h3>1. Service Overview</h3>
+    <p>Hip Hop Grammar provides expertly curated hip hop playlist sets, created by illegible.ink, for use with your Spotify account. Free playlist sets are available to all users, while premium sets can be unlocked for a one-time curation fee (starting at $5 per set) via Stripe. Once unlocked, you can save these playlists to your Spotify library using the "Save to Spotify (+)" feature.</p>
 
-    <h3>2. Use of the Service</h3>
-    <p>The Service enables you to browse, purchase, and save playlists to your Spotify account. You are responsible for maintaining the confidentiality of your Spotify account credentials.</p>
+    <h3>2. Eligibility</h3>
+    <p>You must have a valid Spotify account to use Hip Hop Grammar. By accessing our service, you represent that you are at least 13 years old (or the minimum age required in your jurisdiction) and have the legal capacity to agree to these Terms.</p>
 
-    <h3>3. Purchases and Payments</h3>
-    <p>We offer playlists for purchase via Stripe. All sales are final. Due to the digital nature of our products, we do not offer refunds or returns once a playlist set is purchased and accessible to you.</p>
+    <h3>3. Spotify Integration</h3>
+    <p>Hip Hop Grammar uses Spotify’s API to authenticate your account and save playlists to your Spotify library. You must log in with your Spotify credentials, granting us permission to access your account as outlined during authentication. We do not store your Spotify login details, only the access tokens required to perform these actions on your behalf.</p>
 
-    <h3>4. Intellectual Property</h3>
-    <p>The playlists and all content on the Service are our property or licensed to us. You are granted a non-exclusive, non-transferable license to access and use purchased playlist sets for personal, non-commercial use via Spotify.</p>
+    <h3>4. Payments</h3>
+    <p>Premium playlist sets require a one-time curation fee, processed securely through Stripe. Fees are non-refundable once a set is unlocked, except as required by law. Pricing is displayed in USD and may vary by set (e.g., $5 or higher). You are responsible for any additional taxes or fees imposed by your payment provider.</p>
 
-    <h3>5. Prohibited Conduct</h3>
-    <p>You may not:</p>
-    <ul>
-      <li>Copy, distribute, or sell our playlist sets outside the Service.</li>
-      <li>Use the Service for any illegal or unauthorized purpose.</li>
-      <li>Attempt to reverse-engineer or interfere with the Service.</li>
-    </ul>
+    <h3>5. User Conduct</h3>
+    <p>You agree not to misuse Hip Hop Grammar, including attempting to reverse-engineer, distribute, or resell our curated playlists without permission. Violation of these Terms may result in termination of your access to the service.</p>
 
-    <h3>6. Termination</h3>
-    <p>We may suspend or terminate your access to the Service at our discretion, especially for violations of these Terms, without refund for purchased sets.</p>
+    <h3>6. Intellectual Property</h3>
+    <p>The curation and presentation of playlist sets are owned by illegible.ink. Music content is provided via Spotify and subject to Spotify’s terms and artist licensing agreements. You may not claim ownership of curated playlists beyond personal use in your Spotify library.</p>
 
-    <h3>7. Disclaimer of Warranties</h3>
-    <p>The Service is provided "as is" without warranties of any kind. We do not guarantee uninterrupted access or that playlist sets will remain available on Spotify.</p>
+    <h3>7. Limitation of Liability</h3>
+    <p>Hip Hop Grammar is provided "as is." illegible.ink is not liable for interruptions, errors, or damages arising from your use of the service or Spotify’s platform, except where prohibited by law. We do not guarantee playlist availability if Spotify removes tracks or restricts API access.</p>
 
-    <h3>8. Limitation of Liability</h3>
-    <p>To the fullest extent permitted by law, we are not liable for any indirect, incidental, or consequential damages arising from your use of the Service.</p>
+    <h3>8. Termination</h3>
+    <p>We may suspend or terminate your access to Hip Hop Grammar for violating these Terms or at our discretion. You can stop using the service at any time by logging out and deleting saved playlists from Spotify.</p>
 
-    <h3>9. Governing Law</h3>
-    <p>These Terms are governed by the laws of Delaware, USA. Disputes will be resolved in the courts of Delaware, USA.</p>
+    <h3>9. Changes to Terms</h3>
+    <p>We may update these Terms periodically. Continued use of Hip Hop Grammar after changes constitutes acceptance of the revised Terms. Check this page for the latest version.</p>
 
-    <h3>10. Changes to These Terms</h3>
-    <p>We may update these Terms from time to time. Changes will be posted on this page with an updated effective date. Your continued use constitutes acceptance.</p>
+    <h3>10. Contact Us</h3>
+    <p>For questions or support, email us at <a href="mailto:support@illegible.ink" class="external-link">support@illegible.ink</a>.</p>
 
-    <h3>11. Contact Us</h3>
-    <p>For questions about these Terms, contact us at: <a href="mailto:support@illegible.ink">support@illegible.ink</a>.</p>
+    <p>Last updated: April 6, 2025</p>
   </div>
 
   <footer class="footer">
-    <a href="/playlists">Back to Playlists</a>
+    <form action="/delete-data" method="POST"><button type="submit" class="delete-button">Delete My Data</button></form>
+    <a href="/privacy">Privacy Policy</a>
+    <a href="/terms">Terms of Use</a>
+    <span>Powered by<a href="https://www.spotify.com" target="_blank"><img src="/logo.svg" alt="Spotify" class="footer-logo"></a></span>
   </footer>
+
+  <script src="/scripts.js"></script>
 </body>
 </html>

@@ -358,6 +358,22 @@ app.post('/save-to-spotify', requireAuth, async (req, res) => {
   }
 });
 
+app.get('/data-request', requireAuth, async (req, res) => {
+  try {
+    const user = await retry(() => spotifyApi.getMe());
+    const userId = user.body.id;
+    const purchases = await new Promise((resolve, reject) => {
+      db.all('SELECT setId, purchaseDate FROM purchases WHERE userId = ?', [userId], (err, rows) => {
+        err ? reject(err) : resolve(rows);
+      });
+    });
+    res.json({ userId, purchases });
+  } catch (error) {
+    console.error('Data request error:', error.message);
+    res.status(500).json({ code: 500, message: 'Failed to retrieve data' });
+  }
+});
+
 app.get('/privacy', (req, res) => res.render('privacy'));
 app.get('/terms', (req, res) => res.render('terms'));
 

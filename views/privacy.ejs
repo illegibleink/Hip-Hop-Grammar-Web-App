@@ -3,66 +3,115 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Privacy Policy</title>
+  <title>Privacy Policy - Hip Hop Grammar</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+  <script>
+    // Apply saved theme immediately after body is available
+    (function() {
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.className = `${savedTheme}-mode`;
+    })();
+  </script>
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      document.body.classList.add(`${savedTheme}-mode`);
+      // Check for success query parameter and show feedback
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('success') === 'data-deleted') {
+        alert('Your data has been successfully deleted.');
+        window.history.replaceState({}, document.title, '/privacy');
+      } else if (urlParams.get('data')) {
+        alert('Your data has been successfully retreived. See below for details.');
+      }
+    })();
+  </script>
   <div class="header-row">
     <div class="header-column logo-column">
-      <img src="/spotify-logo.png" alt="Spotify Logo" class="spotify-logo">
+      <button id="theme-toggle" class="theme-toggle"><span class="theme-icon"></span></button>
     </div>
     <div class="header-column title-column">
-      <h1>Privacy Policy</h1>
+      <div class="title-wrapper">
+        <h1>Hip Hop Grammar</h1>
+        <h2>Curated Hip Hop Playlists, Powered by Spotify</h2>
+      </div>
     </div>
-    <div class="header-column logout-column"></div>
+    <div class="header-column logout-column">
+      <% if (typeof spotifyApi !== 'undefined' && spotifyApi.getAccessToken()) { %>
+        <a href="/logout" class="logout-button">Logout</a>
+      <% } else { %>
+        <a href="/" class="home-button"><img src="/logo-home.svg" alt="Home" class="home-logo "></a>
+      <% } %>
+    </div>
   </div>
 
-  <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
-    <h2>Privacy Policy</h2>
-    <p><strong>Effective Date:</strong> March 26, 2025</p>
-    <p>At illegible.ink ("we," "us," or "our"), we value your privacy. This Privacy Policy explains how we collect, use, and protect your personal information when you use our web application ("Service"), which is powered by Spotify.</p>
+  <div class="launch-content privacy-content">
+    <h1>Privacy Policy</h1>
+    <p>At Hip Hop Grammar, a music curation service by illegible.ink powered by Spotify, your privacy is a priority. This Privacy Policy explains how we collect, use, and protect your data when you use our service.</p>
 
-    <h3>1. Information We Collect</h3>
-    <p>We collect only the following information:</p>
+    <h3>1. Data We Collect</h3>
+    <p>We collect the following data to provide Hip Hop Grammar:</p>
     <ul>
-      <li><strong>User ID:</strong> Your Spotify user ID, obtained through Spotify authentication, to identify you within our Service.</li>
-      <li><strong>Purchased Sets:</strong> Records of the playlists you purchase, stored with your user ID and purchase date.</li>
-    </ul>
-    <p>We do not collect any other personal information beyond what is necessary to provide the Service.</p>
-
-    <h3>2. How We Use Your Information</h3>
-    <p>We use your information solely to:</p>
-    <ul>
-      <li>Authenticate your Spotify account and enable access to the Service.</li>
-      <li>Track your purchased playlist sets to provide you with access to them.</li>
-      <li>Fulfill your requests to save purchased playlists to your Spotify account.</li>
+      <li><strong>Spotify Account Data:</strong> When you log in via Spotify, we receive your Spotify user ID and access tokens to authenticate and save playlists to your library. We do not store your Spotify username, password, or email.</li>
+      <li><strong>Purchase Data:</strong> If you unlock premium playlist sets, we store your Spotify user ID and purchased set IDs in our database to track your access.</li>
+      <li><strong>Usage Data:</strong> We may log basic interactions (e.g., page visits) for debugging and improving the service, but this is anonymized and not tied to your identity.</li>
     </ul>
 
-    <h3>3. Data Storage and Security</h3>
-    <p>Your user ID and purchased sets are stored in a secure SQLite database. We implement reasonable technical and organizational measures to protect your data from unauthorized access, loss, or disclosure. However, no system is completely secure, and we cannot guarantee absolute security.</p>
-
-    <h3>4. Sharing Your Information</h3>
-    <p>We do not share, sell, or disclose your personal information to third parties, except:</p>
+    <h3>2. How We Use Your Data</h3>
+    <p>Your data is used solely to:</p>
     <ul>
-      <li>With Spotify, to authenticate your account and save playlists, as required by the Service.</li>
-      <li>As required by law or to comply with legal processes.</li>
+      <li>Authenticate your Spotify account and save curated playlists to your library.</li>
+      <li>Verify purchases of premium playlist sets and grant access.</li>
+      <li>Ensure the service functions as intended (e.g., theme persistence via local storage).</li>
     </ul>
+    <p>We do not sell, share, or use your data for advertising or any purpose beyond delivering Hip Hop Grammar.</p>
 
-    <h3>5. Your Rights</h3>
-    <p>You may request deletion of your data (user ID and purchased sets) at any time via the "Delete My Data" button in the Service. Upon request, we will promptly delete your information from our database.</p>
+    <h3>3. Spotify Integration</h3>
+    <p>Hip Hop Grammar relies on Spotify’s API. Data accessed via Spotify (e.g., your user ID) is governed by Spotify’s <a href="https://www.spotify.com/us/legal/privacy-policy/" target="_blank" class="external-link">Privacy Policy</a>. We only use this data as permitted by Spotify’s Developer Terms.</p>
+
+    <h3>4. Data Storage and Security</h3>
+    <p>Your Spotify user ID and purchase records are stored in a secure database hosted on our server. Access tokens are held in memory during your session and cleared on logout. We implement reasonable security measures to protect your data, but no system is immune to breaches.</p>
+
+    <h3>5. Data Deletion</h3>
+    <p>You can delete your data at any time by clicking "Delete My Data" in the footer. This removes your purchase records from our database and clears your Spotify access tokens. Playlists saved to your Spotify library remain unless you delete them manually on Spotify.</p>
 
     <h3>6. Third-Party Services</h3>
-    <p>Our Service is powered by Spotify. Your use of Spotify is subject to Spotify’s <a href="https://www.spotify.com/legal/privacy-policy/" target="_blank">Privacy Policy</a>. We use Stripe for payment processing, subject to Stripe’s <a href="https://stripe.com/privacy" target="_blank">Privacy Policy</a>.</p>
+    <p>We use:</p>
+    <ul>
+      <li><strong>Spotify:</strong> For authentication and playlist delivery (see their <a href="https://www.spotify.com/us/legal/privacy-policy/" target="_blank" class="external-link">Privacy Policy</a>).</li>
+      <li><strong>Stripe:</strong> For payment processing of premium sets (see their <a href="https://stripe.com/privacy" target="_blank" class="external-link">Privacy Policy</a>). Stripe handles payment details; we only receive confirmation of successful transactions.</li>
+    </ul>
 
-    <h3>7. Changes to This Policy</h3>
-    <p>We may update this Privacy Policy from time to time. Changes will be posted on this page with an updated effective date. Your continued use of the Service constitutes acceptance of the revised policy.</p>
+    <h3>7. Your Rights (GDPR and CCPA)</h3>
+    <p>If you’re in the EU (GDPR) or California (CCPA), you have the right to:</p>
+    <ul>
+      <li><strong>Access:</strong> Request a copy of your data (user ID and purchase history) via “Request My Data” below.</li>
+      <li><strong>Delete:</strong> Remove your data using “Delete My Data” in the footer.</li>
+      <li><strong>Rectify/Restrict/Object:</strong> Contact us to correct, restrict, or object to data use.</li>
+      <li><strong>Portability:</strong> Receive your data in a portable format via “Request My Data.”</li>
+      <li><strong>Opt-Out:</strong> We don’t sell your data, so no opt-out is needed.</li>
+      <li><strong>Non-Discrimination:</strong> Exercising these rights won’t affect your service access.</li>
+    </ul>
+    <p><a href="/data-request" class="spotify-button">Request My Data</a></p>
 
-    <h3>8. Contact Us</h3>
-    <p>If you have questions about this Privacy Policy, contact us at: <a href="mailto:support@illegible.ink">support@illegible.ink</a>.</p>
+    <h3>8. Changes to This Policy</h3>
+    <p>We may update this Privacy Policy as needed. Changes will be posted here, and continued use of Hip Hop Grammar after updates implies acceptance.</p>
+
+    <h3>9. Contact Us</h3>
+    <p>For privacy questions or support, email us at <a href="mailto:support@illegible.ink" class="external-link">support@illegible.ink</a>.</p>
+
+    <p>Last updated: April 6, 2025</p>
   </div>
 
   <footer class="footer">
-    <a href="/playlists">Back to Playlists</a>
+    <form action="/delete-data" method="POST"><button type="submit" class="delete-button">Delete My Data</button></form>
+    <a href="/privacy">Privacy Policy</a>
+    <a href="/terms">Terms of Use</a>
+    <span>Powered by<a href="https://www.spotify.com" target="_blank"><img src="/logo.svg" alt="Spotify" class="footer-logo"></a></span>
   </footer>
+
+  <script src="/scripts.js"></script>
 </body>
 </html>
