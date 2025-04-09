@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node app.js",
+    "start": "cross-env NODE_ENV=production node app.js",
+    "dev": "node app.js",
     "test": "jest"
   },
   "keywords": [],
