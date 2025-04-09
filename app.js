@@ -230,6 +230,7 @@ app.get('/callback', async (req, res) => {
     spotifyApi.setRefreshToken(data.refresh_token || '');
     authStore.delete(state);
     console.log('Authentication successful, access token set');
+    console.log('Redirecting to playlists');
     res.redirect('/playlists');
   } catch (error) {
     console.error('Callback error:', error.message);
