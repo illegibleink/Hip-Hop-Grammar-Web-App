@@ -176,18 +176,21 @@ app.get('/login', (req, res) => {
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = generateCodeChallenge(codeVerifier);
   const state = generateState();
+
   authStore.set(state, codeVerifier);
 
   const scopes = ['playlist-modify-public', 'playlist-modify-private'];
-  const authUrl = `https://accounts.spotify.com/authorize?${new URLSearchParams({
+  const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.SPOTIFY_CLIENT_ID,
     scope: scopes.join(' '),
     redirect_uri: process.env.SPOTIFY_REDIRECT_URI,
-    state,
+    state: state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256'
-  })}`;
+  });
+  const authUrl = `https://accounts.spotify.com/authorize?${params.toString()}`;
+
   console.log('Generated auth URL:', authUrl);
   res.redirect(authUrl);
 });
