@@ -219,7 +219,7 @@ body.dark-mode .launch-content .external-link {
   width: 40px;
   border: none;
   text-decoration: none;
-  
+  transition: filter 0.3s;  
 }
 
 .logout-button {
@@ -395,6 +395,14 @@ body.light-mode .playlist-card {
 
 body.light-mode .highlight {
   animation: highlight-light 2s ease-out;
+}
+
+body.light-mode .home-logo {
+  filter: invert(1);
+}
+
+body.dark-mode .home-logo {
+  filter: none;
 }
 
 @keyframes highlight-light {

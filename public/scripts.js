@@ -1,14 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // Theme toggle interactivity
+  // Apply saved theme once
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  document.body.classList.add(`${savedTheme}-mode`);
+
+  // Theme toggle
   const toggleButton = document.getElementById('theme-toggle');
   const body = document.body;
-  const themeIcon = toggleButton ? toggleButton.querySelector('.theme-icon') : null;
-
+  const themeIcon = toggleButton?.querySelector('.theme-icon');
   if (toggleButton && themeIcon) {
-    // Set initial icon based on current theme
-    const isDark = body.classList.contains('dark-mode');
-    themeIcon.textContent = isDark ? '☀' : '☾';
-
+    themeIcon.textContent = savedTheme === 'dark' ? '☀' : '☾';
     toggleButton.addEventListener('click', () => {
       const isDark = body.classList.contains('dark-mode');
       body.classList.replace(`${isDark ? 'dark' : 'light'}-mode`, `${isDark ? 'light' : 'dark'}-mode`);
@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Stripe and playlist-specific logic (index.ejs only)
+  // Stripe and playlist logic (unchanged, just streamlined)
   const stripe = Stripe(document.body.dataset.stripeKey || '');
   const buyButtons = document.querySelectorAll('.buy-now');
   const saveButtons = document.querySelectorAll('.save-to-spotify');
@@ -27,21 +27,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const setId = button.dataset.setId;
       button.disabled = true;
       button.textContent = 'Processing...';
-
       try {
         const response = await fetch(`/checkout?setId=${setId}`, {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Checkout failed');
-        }
-
+        if (!response.ok) throw new Error((await response.json()).error || 'Checkout failed');
         const { url } = await response.json();
         if (!url) throw new Error('No checkout URL received');
-
         window.location.href = url;
       } catch (error) {
         console.error('Checkout error:', error.message);
@@ -57,19 +50,13 @@ document.addEventListener('DOMContentLoaded', () => {
     button.addEventListener('click', async () => {
       const setId = button.dataset.setId;
       button.disabled = true;
-
       try {
         const response = await fetch('/save-to-spotify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ setId })
         });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Save failed');
-        }
-
+        if (!response.ok) throw new Error((await response.json()).error || 'Save failed');
         const data = await response.json();
         if (data.success) {
           button.classList.add('saved');
@@ -84,12 +71,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Scroll to highlighted set (index.ejs only)
+  // Scroll to highlighted set
   const highlightSetId = document.body.dataset.highlightSetId;
   if (highlightSetId) {
     const highlightedElement = document.querySelector(`.playlist-card[data-set-id="${highlightSetId}"]`);
-    if (highlightedElement) {
-      highlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    highlightedElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 });

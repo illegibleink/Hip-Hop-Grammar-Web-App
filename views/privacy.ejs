@@ -8,13 +8,6 @@
 </head>
 <body>
   <script>
-    // Apply saved theme immediately after body is available
-    (function() {
-      const savedTheme = localStorage.getItem('theme') || 'dark';
-      document.documentElement.className = `${savedTheme}-mode`;
-    })();
-  </script>
-  <script>
     (function() {
       const savedTheme = localStorage.getItem('theme') || 'dark';
       document.body.classList.add(`${savedTheme}-mode`);

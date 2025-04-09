@@ -6,7 +6,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const playlistSets = require('./playlists');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
+const { Pool } = require('pg'); // Replace sqlite3 with pg
 const crypto = require('crypto');
 const cors = require('cors');
 
@@ -17,16 +17,12 @@ const app = express();
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Serve static files with explicit MIME type for .js and logging
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'text/javascript');
-    }
+    if (filePath.endsWith('.js')) res.setHeader('Content-Type', 'text/javascript');
   }
 }));
 
-// Log static file requests for debugging
 app.use((req, res, next) => {
   if (req.path === '/scripts.js' || req.path === '/images/placeholder.jpg') {
     console.log(`Requesting ${req.path} - Resolved to: ${path.join(__dirname, 'public', req.path)}`);
@@ -45,24 +41,29 @@ app.use(cors({
   credentials: true
 }));
 
-// SQLite setup
-const db = new sqlite3.Database('./purchases.db', sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
-  if (err) {
-    console.error('SQLite connection error:', err);
-    process.exit(1);
-  }
-  console.log('Connected to SQLite');
+// PostgreSQL setup
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL, // Heroku provides this
+  ssl: { rejectUnauthorized: false } // Required for Heroku Postgres
 });
 
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS purchases (
+pool.connect((err) => {
+  if (err) {
+    console.error('PostgreSQL connection error:', err);
+    process.exit(1);
+  }
+  console.log('Connected to PostgreSQL');
+});
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS purchases (
     userId TEXT,
     setId TEXT,
-    purchaseDate INTEGER,
+    purchaseDate BIGINT,
     PRIMARY KEY (userId, setId)
-  )`, (err) => {
-    if (err) console.error('Table creation error:', err);
-  });
+  )
+`, (err) => {
+  if (err) console.error('Table creation error:', err);
 });
 
 const spotifyApi = new SpotifyWebApi({
@@ -70,20 +71,11 @@ const spotifyApi = new SpotifyWebApi({
   redirectUri: process.env.SPOTIFY_REDIRECT_URI
 });
 
-// PKCE utilities
-function generateCodeVerifier() {
-  return crypto.randomBytes(32).toString('base64url');
-}
+// PKCE utilities (unchanged)
+function generateCodeVerifier() { return crypto.randomBytes(32).toString('base64url'); }
+function generateCodeChallenge(verifier) { return crypto.createHash('sha256').update(verifier).digest('base64url'); }
+function generateState() { return crypto.randomBytes(16).toString('hex'); }
 
-function generateCodeChallenge(verifier) {
-  return crypto.createHash('sha256').update(verifier).digest('base64url');
-}
-
-function generateState() {
-  return crypto.randomBytes(16).toString('hex');
-}
-
-// Spotify-compliant retry logic
 async function retry(fn, retries = 3, delay = 1000) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -107,10 +99,8 @@ async function retry(fn, retries = 3, delay = 1000) {
   }
 }
 
-// In-memory storage for auth data
 const authStore = new Map();
 
-// Authentication middleware
 const requireAuth = async (req, res, next) => {
   try {
     if (!spotifyApi.getAccessToken()) throw new Error('No access token');
@@ -125,7 +115,7 @@ const requireAuth = async (req, res, next) => {
   }
 };
 
-// Routes
+// Routes (updated for PostgreSQL)
 app.get('/', (req, res) => res.render('launch'));
 
 app.get('/playlists', requireAuth, async (req, res) => {
@@ -133,11 +123,7 @@ app.get('/playlists', requireAuth, async (req, res) => {
     const user = await retry(() => spotifyApi.getMe());
     const userId = user.body.id;
 
-    const purchases = await new Promise((resolve, reject) => {
-      db.all('SELECT setId FROM purchases WHERE userId = ?', [userId], (err, rows) => {
-        err ? reject(err) : resolve(rows);
-      });
-    });
+    const purchases = (await pool.query('SELECT setId FROM purchases WHERE userId = $1', [userId])).rows;
     const purchasedSets = new Set(purchases.map(p => p.setId));
 
     const enrichedSets = await Promise.all(
@@ -168,7 +154,7 @@ app.get('/playlists', requireAuth, async (req, res) => {
 
 async function getAlbumArts(playlists) {
   const albumArts = new Set();
-  const fallbackImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=='; // 1x1 gray pixel
+  const fallbackImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==';
   for (const playlistId of playlists) {
     try {
       const playlist = await retry(() => spotifyApi.getPlaylist(playlistId));
@@ -190,39 +176,32 @@ app.get('/login', (req, res) => {
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = generateCodeChallenge(codeVerifier);
   const state = generateState();
-
   authStore.set(state, codeVerifier);
 
   const scopes = ['playlist-modify-public', 'playlist-modify-private'];
-  const authUrl = `https://accounts.spotify.com/authorize?` +
-    new URLSearchParams({
-      response_type: 'code',
-      client_id: process.env.SPOTIFY_CLIENT_ID,
-      scope: scopes.join(' '),
-      redirect_uri: process.env.SPOTIFY_REDIRECT_URI,
-      state: state,
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256'
-    }).toString();
-
+  const authUrl = `https://accounts.spotify.com/authorize?${new URLSearchParams({
+    response_type: 'code',
+    client_id: process.env.SPOTIFY_CLIENT_ID,
+    scope: scopes.join(' '),
+    redirect_uri: process.env.SPOTIFY_REDIRECT_URI,
+    state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256'
+  })}`;
   console.log('Generated auth URL:', authUrl);
   res.redirect(authUrl);
 });
 
 app.get('/callback', async (req, res) => {
   const { code, state, error } = req.query;
-
-  // Redirect to launch page if authentication is canceled
   if (error) {
     console.error('Spotify auth error:', error);
     return res.redirect('/');
   }
-
   if (!code || !state) {
     console.error('Missing code or state:', { code, state });
     return res.status(400).json({ code: 400, message: 'Missing authorization code or state' });
   }
-
   const codeVerifier = authStore.get(state);
   if (!codeVerifier) {
     console.error('Invalid or expired state:', state);
@@ -235,23 +214,20 @@ app.get('/callback', async (req, res) => {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
-        code: code,
+        code,
         redirect_uri: process.env.SPOTIFY_REDIRECT_URI,
         client_id: process.env.SPOTIFY_CLIENT_ID,
         code_verifier: codeVerifier
-      }).toString()
+      })
     });
-
     if (!response.ok) {
       const errorData = await response.json();
       console.error('Token exchange failed:', errorData);
       throw new Error(errorData.error_description || 'Token exchange failed');
     }
-
     const data = await response.json();
     spotifyApi.setAccessToken(data.access_token);
     spotifyApi.setRefreshToken(data.refresh_token || '');
-
     authStore.delete(state);
     console.log('Authentication successful, access token set');
     res.redirect('/playlists');
@@ -296,13 +272,10 @@ app.get('/success', async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.retrieve(session_id);
     if (session.payment_status === 'paid') {
-      await new Promise((resolve, reject) => {
-        db.run(
-          'INSERT OR IGNORE INTO purchases (userId, setId, purchaseDate) VALUES (?, ?, ?)',
-          [userId, setId, Date.now()],
-          (err) => err ? reject(err) : resolve()
-        );
-      });
+      await pool.query(
+        'INSERT INTO purchases (userId, setId, purchaseDate) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+        [userId, setId, Date.now()]
+      );
     }
     res.redirect(`/playlists?highlight=${setId}`);
   } catch (error) {
@@ -319,16 +292,11 @@ app.post('/save-to-spotify', requireAuth, async (req, res) => {
   try {
     const user = await retry(() => spotifyApi.getMe());
     const userId = user.body.id;
-
     const setIndex = Object.keys(playlistSets).indexOf(setId);
     const isFree = setIndex >= 0 && setIndex < 10;
 
     if (!isFree) {
-      const purchase = await new Promise((resolve) => {
-        db.get('SELECT setId FROM purchases WHERE userId = ? AND setId = ?', [userId, setId], (err, row) => {
-          resolve(err ? null : row);
-        });
-      });
+      const purchase = (await pool.query('SELECT setId FROM purchases WHERE userId = $1 AND setId = $2', [userId, setId])).rows[0];
       if (!purchase) return res.status(403).json({ code: 403, message: 'Set not purchased' });
     }
 
@@ -362,11 +330,7 @@ app.get('/data-request', requireAuth, async (req, res) => {
   try {
     const user = await retry(() => spotifyApi.getMe());
     const userId = user.body.id;
-    const purchases = await new Promise((resolve, reject) => {
-      db.all('SELECT setId, purchaseDate FROM purchases WHERE userId = ?', [userId], (err, rows) => {
-        err ? reject(err) : resolve(rows);
-      });
-    });
+    const purchases = (await pool.query('SELECT setId, purchaseDate FROM purchases WHERE userId = $1', [userId])).rows;
     res.json({ userId, purchases });
   } catch (error) {
     console.error('Data request error:', error.message);
@@ -384,14 +348,13 @@ app.get('/logout', (req, res) => {
 
 app.post('/delete-data', (req, res) => {
   if (spotifyApi.getAccessToken()) {
-    db.run('DELETE FROM purchases WHERE userId = ?', [spotifyApi.getAccessToken()], (err) => {
+    pool.query('DELETE FROM purchases WHERE userId = $1', [spotifyApi.getAccessToken()], (err) => {
       if (err) console.error('Delete purchases error:', err);
     });
   }
   spotifyApi.setAccessToken(null);
-  res.redirect('/?success=data-deleted'); // Add success query parameter
+  res.redirect('/?success=data-deleted');
 });
-
 
 app.use((err, req, res, next) => {
   console.error('Server error:', err.stack);
