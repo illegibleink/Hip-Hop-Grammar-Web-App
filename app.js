@@ -68,7 +68,7 @@ pool.query(`
   if (err) console.error('Table creation error:', err);
 });
 
-// Session middleware (moved up)
+// Session middleware
 app.use(session({
   store: new PgSession({
     pool: pool,
