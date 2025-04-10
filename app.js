@@ -9,8 +9,8 @@ const path = require('path');
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const cors = require('cors');
-const session = require('express-session'); // Move up
-const PgSession = require('connect-pg-simple')(session); // Move up
+const session = require('express-session');
+const PgSession = require('connect-pg-simple')(session);
 
 console.log(`Loaded ${Object.keys(playlistSets).length} playlist sets`);
 
@@ -43,18 +43,6 @@ app.use(cors({
   credentials: true
 }));
 
-// Session middleware (moved up)
-app.use(session({
-  store: new PgSession({
-    pool: pool,
-    tableName: 'session',
-  }),
-  secret: process.env.SESSION_SECRET || 'your-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: process.env.NODE_ENV === 'production' }
-}));
-
 // PostgreSQL setup
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -80,13 +68,24 @@ pool.query(`
   if (err) console.error('Table creation error:', err);
 });
 
+// Session middleware (moved up)
+app.use(session({
+  store: new PgSession({
+    pool: pool,
+    tableName: 'session',
+  }),
+  secret: process.env.SESSION_SECRET || 'your-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: process.env.NODE_ENV === 'production' }
+}));
+
 const spotifyApi = new SpotifyWebApi({
   clientId: process.env.SPOTIFY_CLIENT_ID,
   redirectUri: process.env.SPOTIFY_REDIRECT_URI
 });
-// Remove duplicate session block at bottom
-// Keep app.listen and module.exports as is
-// PKCE utilities (unchanged)
+
+// PKCE utilities
 function generateCodeVerifier() { return crypto.randomBytes(32).toString('base64url'); }
 function generateCodeChallenge(verifier) { return crypto.createHash('sha256').update(verifier).digest('base64url'); }
 function generateState() { return crypto.randomBytes(16).toString('hex'); }
@@ -130,12 +129,14 @@ const requireAuth = async (req, res, next) => {
   }
 };
 
-// Routes (updated for PostgreSQL)
+// Routes
 app.get('/', (req, res) => res.render('launch'));
 
 app.get('/playlists', requireAuth, async (req, res) => {
+  console.log('Entering /playlists, token:', spotifyApi.getAccessToken());
   try {
     const user = await retry(() => spotifyApi.getMe());
+    console.log('User fetched:', user.body.id);
     const userId = user.body.id;
 
     const purchases = (await pool.query('SELECT setId FROM purchases WHERE userId = $1', [userId])).rows;
@@ -168,7 +169,7 @@ app.get('/playlists', requireAuth, async (req, res) => {
 });
 
 async function getAlbumArts(playlists) {
-  const albumArts = []; // Use array instead of Set to allow repeats
+  const albumArts = [];
   const fallbackImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==';
 
   for (const playlistId of playlists) {
@@ -177,7 +178,7 @@ async function getAlbumArts(playlists) {
       for (const item of playlist.body.tracks.items.slice(0, 4)) {
         const art = item.track?.album?.images[0]?.url;
         if (art && albumArts.length < 4) {
-          albumArts.push(art); // Push even if it’s a repeat
+          albumArts.push(art);
         }
         if (albumArts.length === 4) break;
       }
@@ -187,7 +188,6 @@ async function getAlbumArts(playlists) {
     }
   }
 
-  // Fill remaining slots with fallback if needed
   while (albumArts.length < 4) {
     albumArts.push(fallbackImage);
   }
@@ -309,6 +309,7 @@ app.get('/success', async (req, res) => {
 });
 
 app.post('/save-to-spotify', requireAuth, async (req, res) => {
+  console.log('Entering /save-to-spotify, setId:', req.body.setId);
   const { setId } = req.body;
   const set = playlistSets[setId];
   if (!set) return res.status(400).json({ code: 400, message: 'Invalid set' });
