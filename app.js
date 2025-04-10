@@ -60,6 +60,7 @@ pool.connect((err) => {
   console.log('Connected to PostgreSQL');
 });
 
+// Create tables
 pool.query(`
   CREATE TABLE IF NOT EXISTS purchases (
     userId TEXT,
@@ -68,7 +69,20 @@ pool.query(`
     PRIMARY KEY (userId, setId)
   )
 `, (err) => {
-  if (err) console.error('Table creation error:', err);
+  if (err) console.error('Purchases table creation error:', err);
+});
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS session (
+    sid VARCHAR NOT NULL COLLATE "default",
+    sess JSON NOT NULL,
+    expire TIMESTAMP(6) NOT NULL,
+    PRIMARY KEY (sid)
+  );
+  CREATE INDEX IF NOT EXISTS "session_expire_idx" ON session (expire);
+`, (err) => {
+  if (err) console.error('Session table creation error:', err);
+  else console.log('Session table ready');
 });
 
 // Session middleware
@@ -202,7 +216,7 @@ app.get('/login', (req, res) => {
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = generateCodeChallenge(codeVerifier);
   const state = generateState();
-  req.session.codeVerifier = codeVerifier; // Store in session
+  req.session.codeVerifier = codeVerifier;
   req.session.state = state;
 
   const scopes = ['playlist-modify-public', 'playlist-modify-private'];
@@ -257,7 +271,7 @@ app.get('/callback', async (req, res) => {
     const data = await response.json();
     spotifyApi.setAccessToken(data.access_token);
     spotifyApi.setRefreshToken(data.refresh_token || '');
-    req.session.accessToken = data.access_token; // Persist in session
+    req.session.accessToken = data.access_token;
     req.session.refreshToken = data.refresh_token;
     console.log('Authentication successful, access token set:', data.access_token);
     res.redirect('/playlists');
@@ -329,7 +343,7 @@ app.post('/save-to-spotify', requireAuth, async (req, res) => {
 
     if (!isFree) {
       const purchase = (await pool.query('SELECT setId FROM purchases WHERE userId = $1 AND setId = $2', [userId, setId])).rows[0];
-      if (!purchase) return res.status(400).json({ code: 403, message: 'Set not purchased' });
+      if (!purchase) return res.status(403).json({ code: 403, message: 'Set not purchased' });
     }
 
     const playlists = Array.isArray(set.playlists) ? set.playlists : (set.playlists ? [set.playlists] : []);
@@ -390,7 +404,9 @@ app.post('/delete-data', (req, res) => {
 
 app.use((err, req, res, next) => {
   console.error('Server error:', err.stack);
-  res.status(500).json({ code: 500, message: 'Internal server error' });
+  if (!res.headersSent) {
+    res.status(500).json({ code: 500, message: 'Internal server error' });
+  }
 });
 
 const PORT = process.env.PORT || 5173;
