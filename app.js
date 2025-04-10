@@ -153,23 +153,31 @@ app.get('/playlists', requireAuth, async (req, res) => {
 });
 
 async function getAlbumArts(playlists) {
-  const albumArts = new Set();
+  const albumArts = []; // Use array instead of Set to allow repeats
   const fallbackImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==';
+
   for (const playlistId of playlists) {
     try {
       const playlist = await retry(() => spotifyApi.getPlaylist(playlistId));
       for (const item of playlist.body.tracks.items.slice(0, 4)) {
         const art = item.track?.album?.images[0]?.url;
-        if (art && albumArts.size < 4) albumArts.add(art);
-        if (albumArts.size === 4) break;
+        if (art && albumArts.length < 4) {
+          albumArts.push(art); // Push even if it’s a repeat
+        }
+        if (albumArts.length === 4) break;
       }
-      if (albumArts.size === 4) break;
+      if (albumArts.length === 4) break;
     } catch (err) {
       console.error(`Playlist fetch error ${playlistId}:`, err.message);
     }
   }
-  while (albumArts.size < 4) albumArts.add(fallbackImage);
-  return Array.from(albumArts);
+
+  // Fill remaining slots with fallback if needed
+  while (albumArts.length < 4) {
+    albumArts.push(fallbackImage);
+  }
+
+  return albumArts;
 }
 
 app.get('/login', (req, res) => {
@@ -230,8 +238,8 @@ app.get('/callback', async (req, res) => {
     spotifyApi.setRefreshToken(data.refresh_token || '');
     authStore.delete(state);
     console.log('Authentication successful, access token set');
-    console.log('Redirecting to playlists');
     res.redirect('/playlists');
+    console.log('Redirecting to playlists');
   } catch (error) {
     console.error('Callback error:', error.message);
     res.status(400).json({ code: 400, message: `Authentication failed: ${error.message}` });
