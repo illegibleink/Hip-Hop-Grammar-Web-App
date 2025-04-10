@@ -6,9 +6,11 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const playlistSets = require('./playlists');
 const path = require('path');
-const { Pool } = require('pg'); // Replace sqlite3 with pg
+const { Pool } = require('pg');
 const crypto = require('crypto');
 const cors = require('cors');
+const session = require('express-session'); // Move up
+const PgSession = require('connect-pg-simple')(session); // Move up
 
 console.log(`Loaded ${Object.keys(playlistSets).length} playlist sets`);
 
@@ -41,10 +43,22 @@ app.use(cors({
   credentials: true
 }));
 
+// Session middleware (moved up)
+app.use(session({
+  store: new PgSession({
+    pool: pool,
+    tableName: 'session',
+  }),
+  secret: process.env.SESSION_SECRET || 'your-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: process.env.NODE_ENV === 'production' }
+}));
+
 // PostgreSQL setup
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // Heroku provides this
-  ssl: { rejectUnauthorized: false } // Required for Heroku Postgres
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
 pool.connect((err) => {
@@ -70,7 +84,8 @@ const spotifyApi = new SpotifyWebApi({
   clientId: process.env.SPOTIFY_CLIENT_ID,
   redirectUri: process.env.SPOTIFY_REDIRECT_URI
 });
-
+// Remove duplicate session block at bottom
+// Keep app.listen and module.exports as is
 // PKCE utilities (unchanged)
 function generateCodeVerifier() { return crypto.randomBytes(32).toString('base64url'); }
 function generateCodeChallenge(verifier) { return crypto.createHash('sha256').update(verifier).digest('base64url'); }
