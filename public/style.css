@@ -320,6 +320,7 @@ body.dark-mode .launch-content .external-link {
 .footer {
   text-align: center;
   margin-top: 20px;
+  margin-bottom: 20px;
   color: #333;
   display: flex;
   justify-content: center;
