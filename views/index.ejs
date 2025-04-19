@@ -37,11 +37,9 @@
           <% set.albumArts.forEach((art, index) => { %>
             <img src="<%= art %>" alt="Album Art <%= index + 1 %>" class="album-art">
           <% }); %>
-          <div class="playlist-title-overlay">
-            <h3><%= set.name %></h3>
-          </div>
         </div>
-        <div class="playlist-info">
+        <div class="playlist-info"><h3><%= set.name %></h3>
+
           <% if (set.price && !set.isFree) { %>
             <p class="price"><strong>$<%= (set.price / 100).toFixed(0) %> curation fee</strong></p>
             <% if (purchasedSets.includes(setId)) { %>
