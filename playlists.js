@@ -371,22 +371,22 @@ module.exports = {
     playlists: ['3j5irDG644pybVH4B371be?si=x5GG99FlTjiDD3qe5EA3Qw&pi=WmlzlKuERWirN'],
   },
   set75: {
-    name: '#75 | 10.5',
+    name: '#75',
     price: 1000, // $10.00 in cents
     playlists: ['3dQt7e7J1YXUSHB3kOBRAX?si=_Mq7sBSHQNOZEC0-hQtK9A&pi=mpiSA97dSOGJY'],
   },
   set76: {
-    name: '#76 | 23.5',
+    name: '#76',
     price: 1000, // $10.00 in cents
     playlists: ['4GzauV0yPFBITpTHmZtIEt?si=Qkk-gh2ATZ-odpjJLGZsqg&pi=BTFtwCR0SP2xb'],
   },
   set77: {
-    name: '#77 | 36.5',
+    name: '#77',
     price: 1000, // $10.00 in cents
     playlists: ['36yL32liDwQXXTplNmzHjx?si=0i7ANN91R7CXIcNt87TyJg&pi=8f0SX_ioSYmkN'],
   },
   set78: {
-    name: '#78 | 49.5',
+    name: '#78',
     price: 1000, // $10.00 in cents
     playlists: ['66HlYxgRYavxReFzR2Wlgg?si=l_JMiBIeRBCOdcp6RU3Rfw&pi=mfgcVpLfQ96-h'],
   }
