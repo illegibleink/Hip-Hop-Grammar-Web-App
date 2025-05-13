@@ -136,7 +136,6 @@ body.dark-mode .playlist-card:hover {
   background-color: #1DB954;
   color: white;
   transition: background-color 0.2s;
-  pointer-events: none; opacity: 0.5;
 }
 
 .buy-now:hover {
