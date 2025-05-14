@@ -1,10 +1,11 @@
-document.addEventListener('DOMContentLoaded', () => {
+ddocument.addEventListener('DOMContentLoaded', () => {
   console.log('Body dataset:', document.body.dataset);
   const purchasedSets = JSON.parse(document.body.dataset.purchasedSets || '[]');
   console.log('Parsed purchasedSets:', purchasedSets);
-  // Apply saved theme once
-  const savedTheme = localStorage.getItem('theme') || 'dark';
-  document.body.classList.add(`${savedTheme}-mode`);
+  const setIdToCheck = document.body.dataset.highlightSetId;
+  const userId = document.body.dataset.userId;
+  console.log('Client-side userId:', userId);
+  console.log(`Is ${setIdToCheck} in purchasedSets?`, purchasedSets.includes(setIdToCheck));
 
   // Theme toggle
   const toggleButton = document.getElementById('theme-toggle');
