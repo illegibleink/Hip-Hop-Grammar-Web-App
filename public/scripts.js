@@ -6,6 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const userId = document.body.dataset.userId;
   console.log('Client-side userId:', userId);
   console.log(`Is ${setIdToCheck} in purchasedSets?`, purchasedSets.includes(setIdToCheck));
+  // Apply saved theme once
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  document.body.classList.add(`${savedTheme}-mode`);
 
   // Theme toggle
   const toggleButton = document.getElementById('theme-toggle');
