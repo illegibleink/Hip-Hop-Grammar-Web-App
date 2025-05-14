@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('Body dataset:', document.body.dataset);
   // Apply saved theme once
   const savedTheme = localStorage.getItem('theme') || 'dark';
   document.body.classList.add(`${savedTheme}-mode`);

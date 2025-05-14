@@ -322,7 +322,7 @@ app.get('/success', async (req, res) => {
     if (session.payment_status === 'paid') {
       console.log('Inserting purchase:', { userId, setId, purchaseDate: Date.now() });
       await pool.query(
-        'INSERT INTO purchases (userId, setId, purchaseDate) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+        'INSERT INTO purchases (userId, setId, purchaseDate) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING *',
         [userId, setId, Date.now()]
       );
       console.log('Purchase inserted for:', { userId, setId });
