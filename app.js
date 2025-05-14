@@ -156,8 +156,10 @@ app.get('/playlists', requireAuth, async (req, res) => {
     console.log('User fetched:', user.body.id);
     const userId = user.body.id;
 
+    // Fetch purchases and filter out null or invalid setIds
     const purchases = (await pool.query('SELECT setId FROM purchases WHERE userId = $1', [userId])).rows;
-    const purchasedSets = new Set(purchases.map(p => p.setId));
+    const purchasedSets = purchases.map(p => p.setId).filter(setId => setId != null);
+    console.log('Purchased sets:', purchasedSets);
 
     const enrichedSets = await Promise.all(
       Object.entries(playlistSets).map(async ([setId, set], index) => {
@@ -174,17 +176,16 @@ app.get('/playlists', requireAuth, async (req, res) => {
 
     res.render('index', {
       playlistSets: Object.fromEntries(enrichedSets),
-      purchasedSets: Array.from(purchasedSets),
-      stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+      purchasedSets, // Pass the array directly
+      stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
       userId,
-      highlightSetId: req.query.highlight
+      highlightSetId: req.query.highlight || ''
     });
   } catch (error) {
     console.error('Playlists error:', error.stack);
     res.status(500).json({ code: 500, message: 'Internal server error' });
   }
 });
-
 async function getAlbumArts(playlists) {
   const albumArts = [];
   const fallbackImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==';
@@ -285,7 +286,10 @@ app.get('/callback', async (req, res) => {
 app.get('/checkout', requireAuth, async (req, res) => {
   const { setId } = req.query;
   const set = playlistSets[setId];
-  if (!set || set.isFree) return res.redirect('/playlists');
+  if (!set || set.isFree) {
+    console.error('Invalid or free set:', setId);
+    return res.redirect('/playlists');
+  }
 
   try {
     const user = await retry(() => spotifyApi.getMe());
@@ -303,6 +307,7 @@ app.get('/checkout', requireAuth, async (req, res) => {
       success_url: `${process.env.BASE_URL || 'http://localhost:5173'}/success?session_id={CHECKOUT_SESSION_ID}&setId=${setId}&userId=${user.body.id}`,
       cancel_url: `${process.env.BASE_URL || 'http://localhost:5173'}/playlists`
     });
+    console.log('Checkout session created:', session.id);
     res.json({ url: session.url });
   } catch (error) {
     console.error('Checkout error:', error.message);
