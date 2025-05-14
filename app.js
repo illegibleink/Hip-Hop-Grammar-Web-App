@@ -161,6 +161,9 @@ app.get('/playlists', requireAuth, async (req, res) => {
     const purchasedSets = purchases.rows.map(p => p.setId).filter(setId => setId != null);
     console.log('Processed purchasedSets:', purchasedSets);
 
+    const allPurchases = await pool.query('SELECT userId, setId, purchaseDate FROM purchases');
+    console.log('All purchases in database:', allPurchases.rows);
+
     const enrichedSets = await Promise.all(
       Object.entries(playlistSets).map(async ([setId, set], index) => {
         const playlists = Array.isArray(set.playlists) ? set.playlists : (set.playlists ? [set.playlists] : []);
@@ -174,6 +177,7 @@ app.get('/playlists', requireAuth, async (req, res) => {
       })
     );
 
+    console.log('Rendering index with purchasedSets:', purchasedSets);
     res.render('index', {
       playlistSets: Object.fromEntries(enrichedSets),
       purchasedSets,
@@ -295,6 +299,9 @@ app.get('/checkout', requireAuth, async (req, res) => {
     const user = await retry(() => spotifyApi.getMe());
     const userId = user.body.id;
     console.log('Checkout route: userId:', userId, 'setId:', setId);
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://app.illegible.ink' 
+      : 'http://localhost:5173';
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
@@ -306,8 +313,8 @@ app.get('/checkout', requireAuth, async (req, res) => {
         quantity: 1
       }],
       mode: 'payment',
-      success_url: `${process.env.BASE_URL || 'http://localhost:5173'}/success?session_id={CHECKOUT_SESSION_ID}&setId=${setId}&userId=${userId}`,
-      cancel_url: `${process.env.BASE_URL || 'http://localhost:5173'}/playlists`
+      success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}&setId=${setId}&userId=${userId}`,
+      cancel_url: `${baseUrl}/playlists`
     });
     console.log('Checkout session created:', session.id);
     res.json({ url: session.url });
@@ -337,9 +344,8 @@ app.get('/success', async (req, res) => {
       } else {
         console.warn('Purchase insertion skipped (possible duplicate):', { userId, setId });
       }
-      // Log all purchases for this user
-      const allPurchases = await pool.query('SELECT * FROM purchases WHERE userId = $1', [userId]);
-      console.log('All purchases for userId', userId, ':', allPurchases.rows);
+      const allPurchases = await pool.query('SELECT userId, setId, purchaseDate FROM purchases');
+      console.log('All purchases in database:', allPurchases.rows);
     } else {
       console.warn('Payment not completed:', session.payment_status);
     }
