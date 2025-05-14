@@ -1,4 +1,4 @@
-ddocument.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
   console.log('Body dataset:', document.body.dataset);
   const purchasedSets = JSON.parse(document.body.dataset.purchasedSets || '[]');
   console.log('Parsed purchasedSets:', purchasedSets);
