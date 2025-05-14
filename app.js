@@ -153,13 +153,13 @@ app.get('/playlists', requireAuth, async (req, res) => {
   console.log('Entering /playlists, token:', spotifyApi.getAccessToken());
   try {
     const user = await retry(() => spotifyApi.getMe());
-    console.log('User fetched:', user.body.id);
     const userId = user.body.id;
+    console.log('User fetched, userId:', userId);
 
-    // Fetch purchases and filter out null or invalid setIds
-    const purchases = (await pool.query('SELECT setId FROM purchases WHERE userId = $1', [userId])).rows;
-    const purchasedSets = purchases.map(p => p.setId).filter(setId => setId != null);
-    console.log('Purchased sets:', purchasedSets);
+    const purchases = await pool.query('SELECT setId FROM purchases WHERE userId = $1', [userId]);
+    console.log('Raw purchases query result for userId', userId, ':', purchases.rows);
+    const purchasedSets = purchases.rows.map(p => p.setId).filter(setId => setId != null);
+    console.log('Processed purchasedSets:', purchasedSets);
 
     const enrichedSets = await Promise.all(
       Object.entries(playlistSets).map(async ([setId, set], index) => {
@@ -176,13 +176,13 @@ app.get('/playlists', requireAuth, async (req, res) => {
 
     res.render('index', {
       playlistSets: Object.fromEntries(enrichedSets),
-      purchasedSets, // Pass the array directly
+      purchasedSets,
       stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
       userId,
       highlightSetId: req.query.highlight || ''
     });
   } catch (error) {
-    console.error('Playlists error:', error.stack);
+    console.error('Playlists error:', error.message, error.stack);
     res.status(500).json({ code: 500, message: 'Internal server error' });
   }
 });
@@ -293,6 +293,8 @@ app.get('/checkout', requireAuth, async (req, res) => {
 
   try {
     const user = await retry(() => spotifyApi.getMe());
+    const userId = user.body.id;
+    console.log('Checkout route: userId:', userId, 'setId:', setId);
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
@@ -304,13 +306,13 @@ app.get('/checkout', requireAuth, async (req, res) => {
         quantity: 1
       }],
       mode: 'payment',
-      success_url: `${process.env.BASE_URL || 'http://localhost:5173'}/success?session_id={CHECKOUT_SESSION_ID}&setId=${setId}&userId=${user.body.id}`,
+      success_url: `${process.env.BASE_URL || 'http://localhost:5173'}/success?session_id={CHECKOUT_SESSION_ID}&setId=${setId}&userId=${userId}`,
       cancel_url: `${process.env.BASE_URL || 'http://localhost:5173'}/playlists`
     });
     console.log('Checkout session created:', session.id);
     res.json({ url: session.url });
   } catch (error) {
-    console.error('Checkout error:', error.message);
+    console.error('Checkout error:', error.message, error.stack);
     res.status(500).json({ code: 500, message: 'Checkout failed' });
   }
 });
@@ -318,25 +320,32 @@ app.get('/checkout', requireAuth, async (req, res) => {
 app.get('/success', async (req, res) => {
   const { session_id, setId, userId } = req.query;
   if (!playlistSets[setId] || !session_id || !userId) {
-    console.error('Invalid /success params:', { session_id, setId, userId });
+    console.error('Invalid success parameters:', { session_id, setId, userId });
     return res.redirect('/playlists');
   }
 
   try {
+    console.log('Success route: Processing for userId:', userId, 'setId:', setId);
     const session = await stripe.checkout.sessions.retrieve(session_id);
     if (session.payment_status === 'paid') {
-      console.log('Inserting purchase:', { userId, setId, purchaseDate: Date.now() });
-      await pool.query(
+      const result = await pool.query(
         'INSERT INTO purchases (userId, setId, purchaseDate) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING *',
         [userId, setId, Date.now()]
       );
-      console.log('Purchase inserted for:', { userId, setId });
+      if (result.rows.length > 0) {
+        console.log('Purchase inserted:', result.rows[0]);
+      } else {
+        console.warn('Purchase insertion skipped (possible duplicate):', { userId, setId });
+      }
+      // Log all purchases for this user
+      const allPurchases = await pool.query('SELECT * FROM purchases WHERE userId = $1', [userId]);
+      console.log('All purchases for userId', userId, ':', allPurchases.rows);
     } else {
       console.warn('Payment not completed:', session.payment_status);
     }
     res.redirect(`/playlists?highlight=${setId}`);
   } catch (error) {
-    console.error('Success error:', error.message, error.stack);
+    console.error('Success route error:', error.message, error.stack);
     res.redirect('/playlists');
   }
 });
