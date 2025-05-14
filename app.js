@@ -312,19 +312,26 @@ app.get('/checkout', requireAuth, async (req, res) => {
 
 app.get('/success', async (req, res) => {
   const { session_id, setId, userId } = req.query;
-  if (!playlistSets[setId] || !session_id || !userId) return res.redirect('/playlists');
+  if (!playlistSets[setId] || !session_id || !userId) {
+    console.error('Invalid /success params:', { session_id, setId, userId });
+    return res.redirect('/playlists');
+  }
 
   try {
     const session = await stripe.checkout.sessions.retrieve(session_id);
     if (session.payment_status === 'paid') {
+      console.log('Inserting purchase:', { userId, setId, purchaseDate: Date.now() });
       await pool.query(
         'INSERT INTO purchases (userId, setId, purchaseDate) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
         [userId, setId, Date.now()]
       );
+      console.log('Purchase inserted for:', { userId, setId });
+    } else {
+      console.warn('Payment not completed:', session.payment_status);
     }
     res.redirect(`/playlists?highlight=${setId}`);
   } catch (error) {
-    console.error('Success error:', error.message);
+    console.error('Success error:', error.message, error.stack);
     res.redirect('/playlists');
   }
 });
