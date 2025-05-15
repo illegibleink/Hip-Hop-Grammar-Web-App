@@ -7,12 +7,13 @@
   <link rel="stylesheet" href="/style.css">
   <script src="https://js.stripe.com/v3/"></script>
 </head>
-<body data-stripe-key="<%= stripePublishableKey %>" data-highlight-set-id="<%= highlightSetId %>">
+<body data-stripe-key="<%= stripePublishableKey %>" data-highlight-set-id="<%= highlightSetId %>" data-purchased-sets="<%= JSON.stringify(purchasedSets) %>" data-user-id="<%= userId %>">
   <script>
     // Apply saved theme immediately after body is available
     (function() {
       const savedTheme = localStorage.getItem('theme') || 'dark';
       document.body.classList.add(`${savedTheme}-mode`);
+      console.log('purchasedSets from data attribute:', JSON.parse(document.body.dataset.purchasedSets)); // Fix 3: Log purchasedSets
     })();
   </script>
   <div class="header-row">
