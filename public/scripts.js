@@ -1,11 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('Body dataset:', document.body.dataset);
-  const purchasedSets = JSON.parse(document.body.dataset.purchasedSets || '[]');
-  console.log('Parsed purchasedSets:', purchasedSets);
-  const setIdToCheck = document.body.dataset.highlightSetId;
-  const userId = document.body.dataset.userId;
-  console.log('Client-side userId:', userId);
-  console.log(`Is ${setIdToCheck} in purchasedSets?`, purchasedSets.includes(setIdToCheck));
   // Apply saved theme once
   const savedTheme = localStorage.getItem('theme') || 'dark';
   document.body.classList.add(`${savedTheme}-mode`);
@@ -39,10 +32,10 @@ document.addEventListener('DOMContentLoaded', () => {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || 'Checkout failed');
-        if (!data.url) throw new Error('No checkout URL received');
-        window.location.href = data.url;
+        if (!response.ok) throw new Error((await response.json()).error || 'Checkout failed');
+        const { url } = await response.json();
+        if (!url) throw new Error('No checkout URL received');
+        window.location.href = url;
       } catch (error) {
         console.error('Checkout error:', error.message);
         alert(`Failed to initiate payment: ${error.message}`);

@@ -94,11 +94,13 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { 
-    secure: process.env.NODE_ENV === 'production', // Requires HTTPS in production
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
+  cookie: { secure: process.env.NODE_ENV === 'production' }
 }));
+
+const spotifyApi = new SpotifyWebApi({
+  clientId: process.env.SPOTIFY_CLIENT_ID,
+  redirectUri: process.env.SPOTIFY_REDIRECT_URI
+});
 
 // PKCE utilities
 function generateCodeVerifier() { return crypto.randomBytes(32).toString('base64url'); }
@@ -151,20 +153,11 @@ app.get('/playlists', requireAuth, async (req, res) => {
   console.log('Entering /playlists, token:', spotifyApi.getAccessToken());
   try {
     const user = await retry(() => spotifyApi.getMe());
-    const rawUserId = user.body.id;
-    const normalizedUserId = rawUserId.startsWith('spotify:user:') 
-      ? rawUserId.replace('spotify:user:', '') 
-      : rawUserId;
-    console.log('Playlists route: Raw userId:', rawUserId, 'Normalized userId:', normalizedUserId);
-    console.log('Playlists route: Highlight setId:', req.query.highlight);
+    console.log('User fetched:', user.body.id);
+    const userId = user.body.id;
 
-    const purchases = await pool.query('SELECT setId FROM purchases WHERE userId = $1', [normalizedUserId]);
-    console.log('Raw purchases query result for userId', normalizedUserId, ':', purchases.rows);
-    const purchasedSets = purchases.rows.map(p => p.setId).filter(setId => setId != null);
-    console.log('Processed purchasedSets:', purchasedSets);
-
-    const allPurchases = await pool.query('SELECT userId, setId, purchaseDate FROM purchases');
-    console.log('All purchases in database:', allPurchases.rows);
+    const purchases = (await pool.query('SELECT setId FROM purchases WHERE userId = $1', [userId])).rows;
+    const purchasedSets = new Set(purchases.map(p => p.setId));
 
     const enrichedSets = await Promise.all(
       Object.entries(playlistSets).map(async ([setId, set], index) => {
@@ -179,19 +172,19 @@ app.get('/playlists', requireAuth, async (req, res) => {
       })
     );
 
-    console.log('Rendering index with purchasedSets:', purchasedSets);
     res.render('index', {
       playlistSets: Object.fromEntries(enrichedSets),
-      purchasedSets,
-      stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
-      userId: normalizedUserId,
-      highlightSetId: req.query.highlight || ''
+      purchasedSets: Array.from(purchasedSets),
+      stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+      userId,
+      highlightSetId: req.query.highlight
     });
   } catch (error) {
-    console.error('Playlists error:', error.message, error.stack);
+    console.error('Playlists error:', error.stack);
     res.status(500).json({ code: 500, message: 'Internal server error' });
   }
 });
+
 async function getAlbumArts(playlists) {
   const albumArts = [];
   const fallbackImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==';
@@ -242,7 +235,7 @@ app.get('/login', (req, res) => {
 
 app.get('/callback', async (req, res) => {
   const { code, state, error } = req.query;
-  console.log('Callback: code:', code, 'state:', state, 'error:', error);
+  console.log('Entering /callback:', { code, state, error });
   if (error) {
     console.error('Spotify auth error:', error);
     return res.redirect('/');
@@ -280,16 +273,11 @@ app.get('/callback', async (req, res) => {
     spotifyApi.setRefreshToken(data.refresh_token || '');
     req.session.accessToken = data.access_token;
     req.session.refreshToken = data.refresh_token;
-    console.log('Callback: Access token set:', data.access_token);
-    const user = await spotifyApi.getMe();
-    const rawUserId = user.body.id;
-    const normalizedUserId = rawUserId.startsWith('spotify:user:') 
-      ? rawUserId.replace('spotify:user:', '') 
-      : rawUserId;
-    console.log('Callback: Raw userId:', rawUserId, 'Normalized userId:', normalizedUserId);
+    console.log('Authentication successful, access token set:', data.access_token);
     res.redirect('/playlists');
+    console.log('Redirecting to /playlists');
   } catch (error) {
-    console.error('Callback error:', error.message, error.stack);
+    console.error('Callback error:', error.message);
     res.status(400).json({ code: 400, message: `Authentication failed: ${error.message}` });
   }
 });
@@ -297,22 +285,10 @@ app.get('/callback', async (req, res) => {
 app.get('/checkout', requireAuth, async (req, res) => {
   const { setId } = req.query;
   const set = playlistSets[setId];
-  if (!set || set.isFree) {
-    console.error('Invalid or free set:', setId);
-    return res.redirect('/playlists');
-  }
+  if (!set || set.isFree) return res.redirect('/playlists');
 
   try {
     const user = await retry(() => spotifyApi.getMe());
-    const rawUserId = user.body.id;
-    const normalizedUserId = rawUserId.startsWith('spotify:user:') 
-      ? rawUserId.replace('spotify:user:', '') 
-      : rawUserId;
-    console.log('Checkout route: Raw userId:', rawUserId, 'Normalized userId:', normalizedUserId, 'setId:', setId);
-    const baseUrl = process.env.NODE_ENV === 'production' 
-      ? process.env.BASE_URI || 'https://hip-hop-grammar.herokuapp.com'
-      : 'http://localhost:5173';
-    console.log('Checkout route: baseUrl:', baseUrl);
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
@@ -324,61 +300,32 @@ app.get('/checkout', requireAuth, async (req, res) => {
         quantity: 1
       }],
       mode: 'payment',
-      success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}&setId=${setId}&userId=${encodeURIComponent(normalizedUserId)}`,
-      cancel_url: `${baseUrl}/playlists`
+      success_url: `${process.env.BASE_URL || 'http://localhost:5173'}/success?session_id={CHECKOUT_SESSION_ID}&setId=${setId}&userId=${user.body.id}`,
+      cancel_url: `${process.env.BASE_URL || 'http://localhost:5173'}/playlists`
     });
-    console.log('Checkout session created:', session.id);
     res.json({ url: session.url });
   } catch (error) {
-    console.error('Checkout error:', error.message, error.stack);
+    console.error('Checkout error:', error.message);
     res.status(500).json({ code: 500, message: 'Checkout failed' });
   }
 });
 
 app.get('/success', async (req, res) => {
   const { session_id, setId, userId } = req.query;
-  if (!playlistSets[setId] || !session_id || !userId) {
-    console.error('Invalid success parameters:', { session_id, setId, userId });
-    return res.redirect('/playlists');
-  }
+  if (!playlistSets[setId] || !session_id || !userId) return res.redirect('/playlists');
 
   try {
-    const normalizedUserId = userId.startsWith('spotify:user:') 
-      ? userId.replace('spotify:user:', '') 
-      : userId;
-    console.log('Success route: Raw userId:', userId, 'Normalized userId:', normalizedUserId, 'setId:', setId);
     const session = await stripe.checkout.sessions.retrieve(session_id);
     if (session.payment_status === 'paid') {
-      const result = await pool.query(
-        'INSERT INTO purchases (userId, setId, purchaseDate) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING *',
-        [normalizedUserId, setId, Date.now()]
+      await pool.query(
+        'INSERT INTO purchases (userId, setId, purchaseDate) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+        [userId, setId, Date.now()]
       );
-      if (result.rows.length > 0) {
-        console.log('Purchase inserted:', result.rows[0]);
-      } else {
-        console.warn('Purchase insertion skipped (possible duplicate):', { normalizedUserId, setId });
-      }
-      const allPurchases = await pool.query('SELECT userId, setId, purchaseDate FROM purchases');
-      console.log('All purchases in database:', allPurchases.rows);
-    } else {
-      console.warn('Payment not completed:', session.payment_status);
     }
-    console.log('Success route: Redirecting to:', `/playlists?highlight=${setId}`);
     res.redirect(`/playlists?highlight=${setId}`);
   } catch (error) {
-    console.error('Success route error:', error.message, error.stack);
+    console.error('Success error:', error.message);
     res.redirect('/playlists');
-  }
-});
-
-app.get('/debug-purchases', async (req, res) => {
-  try {
-    const purchases = await pool.query('SELECT userId, setId, purchaseDate FROM purchases');
-    console.log('Debug purchases:', purchases.rows);
-    res.json(purchases.rows);
-  } catch (error) {
-    console.error('Debug purchases error:', error.message, error.stack);
-    res.status(500).json({ error: 'Failed to fetch purchases' });
   }
 });
 
