@@ -1,7 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
+  // Apply saved theme once
   const savedTheme = localStorage.getItem('theme') || 'dark';
   document.body.classList.add(`${savedTheme}-mode`);
 
+  // Theme toggle
   const toggleButton = document.getElementById('theme-toggle');
   const body = document.body;
   const themeIcon = toggleButton?.querySelector('.theme-icon');
@@ -15,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Stripe and playlist logic (unchanged, just streamlined)
   const stripe = Stripe(document.body.dataset.stripeKey || '');
   const buyButtons = document.querySelectorAll('.buy-now');
   const saveButtons = document.querySelectorAll('.save-to-spotify');
@@ -29,11 +32,12 @@ document.addEventListener('DOMContentLoaded', () => {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         });
-        if (!response.ok) throw new Error((await response.json()).message || 'Checkout failed');
+        if (!response.ok) throw new Error((await response.json()).error || 'Checkout failed');
         const { url } = await response.json();
         if (!url) throw new Error('No checkout URL received');
         window.location.href = url;
       } catch (error) {
+        console.error('Checkout error:', error.message);
         alert(`Failed to initiate payment: ${error.message}`);
       } finally {
         button.disabled = false;
@@ -52,13 +56,14 @@ document.addEventListener('DOMContentLoaded', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ setId })
         });
-        if (!response.ok) throw new Error((await response.json()).message || 'Save failed');
+        if (!response.ok) throw new Error((await response.json()).error || 'Save failed');
         const data = await response.json();
         if (data.success) {
           button.classList.add('saved');
           alert('Playlist saved to Spotify!');
         }
       } catch (error) {
+        console.error('Save error:', error.message);
         alert(`Failed to save playlist: ${error.message}`);
       } finally {
         button.disabled = false;
@@ -66,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // Scroll to highlighted set
   const highlightSetId = document.body.dataset.highlightSetId;
   if (highlightSetId) {
     const highlightedElement = document.querySelector(`.playlist-card[data-set-id="${highlightSetId}"]`);
