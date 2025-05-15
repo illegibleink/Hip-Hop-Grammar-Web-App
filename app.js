@@ -147,10 +147,18 @@ const requireAuth = async (req, res, next) => {
 // Test session route (Fix 2: Debug session state)
 app.get('/test-session', async (req, res) => {
   req.session.test = 'test-value';
-  console.log('Test session set:', req.session);
+  console.log('Test session set:', {
+    sessionId: req.sessionID,
+    accessToken: req.session.accessToken,
+    test: req.session.test
+  });
   try {
     const sessions = await pool.query('SELECT * FROM session');
-    console.log('Session table contents:', sessions.rows);
+    console.log('Session table contents:', sessions.rows.map(row => ({
+      sid: row.sid,
+      expire: row.expire,
+      sess: row.sess
+    })));
     res.json({ session: req.session, dbSessions: sessions.rows });
   } catch (error) {
     console.error('Test session error:', error);
@@ -162,7 +170,11 @@ app.get('/', (req, res) => res.render('launch'));
 
 app.get('/playlists', requireAuth, async (req, res) => {
   console.log('Entering /playlists, token:', spotifyApi.getAccessToken());
-  console.log('Session in /playlists:', req.session); // Fix 2: Log session
+  console.log('Session in /playlists:', {
+    sessionId: req.sessionID,
+    accessToken: req.session.accessToken,
+    refreshToken: req.session.refreshToken
+  }); // Fix 2: Detailed session logging
   try {
     const user = await retry(() => spotifyApi.getMe());
     const userId = user.body.id;
@@ -185,8 +197,10 @@ app.get('/playlists', requireAuth, async (req, res) => {
       client.release();
     }
 
-    const purchasedSets = new Set(purchases.map(p => p.setId));
+    // Fix 1: Use correct case for setid
+    const purchasedSets = new Set(purchases.map(p => p.setid));
     console.log('purchasedSets before rendering:', Array.from(purchasedSets)); // Fix 3: Log purchasedSets
+    console.log('Serialized purchasedSets:', JSON.stringify(Array.from(purchasedSets))); // Fix 3: Log serialized data
 
     const enrichedSets = await Promise.all(
       Object.entries(playlistSets).map(async ([setId, set], index) => {
@@ -203,7 +217,7 @@ app.get('/playlists', requireAuth, async (req, res) => {
 
     res.render('index', {
       playlistSets: Object.fromEntries(enrichedSets),
-      purchasedSets: Array.from(purchasedSets), // Fix 3: Ensure array is passed
+      purchasedSets: Array.from(purchasedSets),
       stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
       userId,
       highlightSetId: req.query.highlight
@@ -344,7 +358,11 @@ app.get('/checkout', requireAuth, async (req, res) => {
 app.get('/success', async (req, res) => {
   const { session_id, setId, userId } = req.query;
   console.log('Success route params:', { session_id, setId, userId }); // Fix 4: Log params
-  console.log('Session in /success:', req.session); // Fix 2: Log session
+  console.log('Session in /success:', {
+    sessionId: req.sessionID,
+    accessToken: req.session.accessToken,
+    refreshToken: req.session.refreshToken
+  }); // Fix 2: Detailed session logging
   if (!playlistSets[setId] || !session_id || !userId) return res.redirect('/playlists');
 
   try {
