@@ -9,11 +9,9 @@
 </head>
 <body data-stripe-key="<%= stripePublishableKey %>" data-highlight-set-id="<%= highlightSetId %>" data-purchased-sets="<%= JSON.stringify(purchasedSets) %>" data-user-id="<%= userId %>">
   <script>
-    // Apply saved theme immediately after body is available
     (function() {
       const savedTheme = localStorage.getItem('theme') || 'dark';
       document.body.classList.add(`${savedTheme}-mode`);
-      console.log('purchasedSets from data attribute:', JSON.parse(document.body.dataset.purchasedSets)); // Fix 3: Log purchasedSets
     })();
   </script>
   <div class="header-row">
@@ -39,8 +37,8 @@
             <img src="<%= art %>" alt="Album Art <%= index + 1 %>" class="album-art">
           <% }); %>
         </div>
-        <div class="playlist-info"><h3><%= set.name %></h3>
-
+        <div class="playlist-info">
+          <h3><%= set.name %></h3>
           <% if (set.price && !set.isFree) { %>
             <p class="price"><strong>$<%= (set.price / 100).toFixed(0) %> curation fee</strong></p>
             <% if (purchasedSets.includes(setId)) { %>
@@ -49,7 +47,7 @@
               <button class="buy-now" data-set-id="<%= setId %>"><strong>Unlock</strong></button>
             <% } %>
           <% } else { %>
-            <p class="price"> </p>
+            <p class="price"></p>
             <button class="save-to-spotify" data-set-id="<%= setId %>"><span class="save-icon">+</span></button>
           <% } %>
         </div>
@@ -61,7 +59,7 @@
     <form action="/delete-data" method="POST"><button type="submit" class="delete-button">Delete My Data</button></form>
     <a href="/privacy">Privacy Policy</a>
     <a href="/terms">Terms of Use</a>
-    <span>Powered by<a href="https://www.spotify.com" target="_blank"><img src="/logo.svg" alt="Spotify" class="footer-logo"></a></span>
+    <span>Powered by <a href="https://www.spotify.com" target="_blank"><img src="/logo.svg" alt="Spotify" class="footer-logo"></a></span>
   </footer>
 
   <script src="/scripts.js"></script>

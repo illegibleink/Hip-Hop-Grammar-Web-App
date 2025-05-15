@@ -12,7 +12,14 @@ const cors = require('cors');
 const session = require('express-session');
 const PgSession = require('connect-pg-simple')(session);
 
-console.log(`Loaded ${Object.keys(playlistSets).length} playlist sets`);
+// Validate environment variables
+const requiredEnvVars = ['DATABASE_URL', 'SESSION_SECRET', 'SPOTIFY_CLIENT_ID', 'SPOTIFY_REDIRECT_URI', 'STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'BASE_URL'];
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`Missing environment variable: ${envVar}`);
+    process.exit(1);
+  }
+}
 
 const app = express();
 
@@ -26,15 +33,8 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-app.use((req, res, next) => {
-  if (req.path === '/scripts.js' || req.path === '/images/placeholder.jpg') {
-    console.log(`Requesting ${req.path} - Resolved to: ${path.join(__dirname, 'public', req.path)}`);
-  }
-  next();
-});
-
 app.use(express.json());
-app.use(morgan('dev', { skip: (req) => req.url === '/success' }));
+app.use(morgan('combined', { skip: (req) => req.url === '/success' }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
@@ -50,12 +50,9 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-pool.connect((err) => {
-  if (err) {
-    console.error('PostgreSQL connection error:', err);
-    process.exit(1);
-  }
-  console.log('Connected to PostgreSQL');
+pool.on('error', (err) => {
+  console.error('PostgreSQL error:', err);
+  process.exit(1);
 });
 
 // Create tables
@@ -65,34 +62,29 @@ pool.query(`
     setId TEXT,
     purchaseDate BIGINT,
     PRIMARY KEY (userId, setId)
-  )
-`, (err) => {
-  if (err) console.error('Purchases table creation error:', err);
-});
-
-pool.query(`
+  );
   CREATE TABLE IF NOT EXISTS session (
     sid VARCHAR NOT NULL COLLATE "default",
     sess JSON NOT NULL,
     expire TIMESTAMP(6) NOT NULL,
     PRIMARY KEY (sid)
   );
-  CREATE INDEX IF NOT EXISTS "session_expire_idx" ON session (expire);
-`, (err) => {
-  if (err) console.error('Session table creation error:', err);
-  else console.log('Session table ready');
+  CREATE INDEX IF NOT EXISTS session_expire_idx ON session (expire);
+`).catch((err) => {
+  console.error('Table creation error:', err);
+  process.exit(1);
 });
 
 // Session middleware
 app.use(session({
-  store: new PgSession({
-    pool: pool,
-    tableName: 'session',
-  }),
-  secret: process.env.SESSION_SECRET || 'your-secret',
+  store: new PgSession({ pool, tableName: 'session' }),
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: process.env.NODE_ENV === 'production' }
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
 }));
 
 const spotifyApi = new SpotifyWebApi({
@@ -101,9 +93,9 @@ const spotifyApi = new SpotifyWebApi({
 });
 
 // PKCE utilities
-function generateCodeVerifier() { return crypto.randomBytes(32).toString('base64url'); }
-function generateCodeChallenge(verifier) { return crypto.createHash('sha256').update(verifier).digest('base64url'); }
-function generateState() { return crypto.randomBytes(16).toString('hex'); }
+const generateCodeVerifier = () => crypto.randomBytes(32).toString('base64url');
+const generateCodeChallenge = (verifier) => crypto.createHash('sha256').update(verifier).digest('base64url');
+const generateState = () => crypto.randomBytes(16).toString('hex');
 
 async function retry(fn, retries = 3, delay = 1000) {
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -113,7 +105,6 @@ async function retry(fn, retries = 3, delay = 1000) {
       const status = error.statusCode || (error.response && error.response.status);
       if (status === 429) {
         const retryAfter = parseInt(error.headers?.['retry-after']) * 1000 || delay * attempt;
-        console.warn(`Rate limited. Retrying after ${retryAfter}ms`);
         await new Promise(resolve => setTimeout(resolve, retryAfter));
       } else if (status === 401) {
         throw new Error('Authentication expired');
@@ -122,21 +113,21 @@ async function retry(fn, retries = 3, delay = 1000) {
       } else if (attempt === retries) {
         throw error;
       }
-      console.warn(`Attempt ${attempt} failed: ${error.message}. Retrying in ${delay * attempt}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay * attempt));
     }
   }
 }
 
 const requireAuth = async (req, res, next) => {
-  console.log('requireAuth: Checking token:', spotifyApi.getAccessToken());
+  if (!spotifyApi.getAccessToken()) {
+    return req.method === 'POST'
+      ? res.status(401).json({ code: 401, message: 'Authentication required' })
+      : res.redirect('/login');
+  }
   try {
-    if (!spotifyApi.getAccessToken()) throw new Error('No access token');
-    const user = await retry(() => spotifyApi.getMe());
-    console.log('requireAuth: User verified:', user.body.id);
+    await retry(() => spotifyApi.getMe());
     next();
   } catch (error) {
-    console.error('Auth error:', error.message);
     spotifyApi.setAccessToken(null);
     return req.method === 'POST'
       ? res.status(401).json({ code: 401, message: 'Authentication required' })
@@ -144,63 +135,28 @@ const requireAuth = async (req, res, next) => {
   }
 };
 
-// Test session route (Fix 2: Debug session state)
-app.get('/test-session', async (req, res) => {
-  req.session.test = 'test-value';
-  console.log('Test session set:', {
-    sessionId: req.sessionID,
-    accessToken: req.session.accessToken,
-    test: req.session.test
-  });
-  try {
-    const sessions = await pool.query('SELECT * FROM session');
-    console.log('Session table contents:', sessions.rows.map(row => ({
-      sid: row.sid,
-      expire: row.expire,
-      sess: row.sess
-    })));
-    res.json({ session: req.session, dbSessions: sessions.rows });
-  } catch (error) {
-    console.error('Test session error:', error);
-    res.status(500).json({ error: 'Failed to access session store' });
-  }
-});
-
 app.get('/', (req, res) => res.render('launch'));
 
 app.get('/playlists', requireAuth, async (req, res) => {
-  console.log('Entering /playlists, token:', spotifyApi.getAccessToken());
-  console.log('Session in /playlists:', {
-    sessionId: req.sessionID,
-    accessToken: req.session.accessToken,
-    refreshToken: req.session.refreshToken
-  }); // Fix 2: Detailed session logging
   try {
     const user = await retry(() => spotifyApi.getMe());
     const userId = user.body.id;
-    console.log('User fetched:', userId); // Fix 4: Log userId
 
-    // Fix 1: Use transaction for database query
     const client = await pool.connect();
     let purchases;
     try {
       await client.query('BEGIN');
       await client.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
-      purchases = (await client.query('SELECT setId FROM purchases WHERE userId = $1', [userId])).rows;
-      console.log('Purchases retrieved:', purchases); // Fix 1: Log query results
+      purchases = (await client.query('SELECT setid FROM purchases WHERE userId = $1', [userId])).rows;
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error('Database query error:', error);
       throw error;
     } finally {
       client.release();
     }
 
-    // Fix 1: Use correct case for setid
     const purchasedSets = new Set(purchases.map(p => p.setid));
-    console.log('purchasedSets before rendering:', Array.from(purchasedSets)); // Fix 3: Log purchasedSets
-    console.log('Serialized purchasedSets:', JSON.stringify(Array.from(purchasedSets))); // Fix 3: Log serialized data
 
     const enrichedSets = await Promise.all(
       Object.entries(playlistSets).map(async ([setId, set], index) => {
@@ -223,7 +179,7 @@ app.get('/playlists', requireAuth, async (req, res) => {
       highlightSetId: req.query.highlight
     });
   } catch (error) {
-    console.error('Playlists error:', error.stack);
+    console.error('Playlists error:', error);
     res.status(500).json({ code: 500, message: 'Internal server error' });
   }
 });
@@ -237,21 +193,14 @@ async function getAlbumArts(playlists) {
       const playlist = await retry(() => spotifyApi.getPlaylist(playlistId));
       for (const item of playlist.body.tracks.items.slice(0, 4)) {
         const art = item.track?.album?.images[0]?.url;
-        if (art && albumArts.length < 4) {
-          albumArts.push(art);
-        }
+        if (art && albumArts.length < 4) albumArts.push(art);
         if (albumArts.length === 4) break;
       }
       if (albumArts.length === 4) break;
-    } catch (err) {
-      console.error(`Playlist fetch error ${playlistId}:`, err.message);
-    }
+    } catch (err) {}
   }
 
-  while (albumArts.length < 4) {
-    albumArts.push(fallbackImage);
-  }
-
+  while (albumArts.length < 4) albumArts.push(fallbackImage);
   return albumArts;
 }
 
@@ -272,26 +221,14 @@ app.get('/login', (req, res) => {
     code_challenge: codeChallenge,
     code_challenge_method: 'S256'
   })}`;
-  console.log('Generated auth URL:', authUrl);
   res.redirect(authUrl);
 });
 
 app.get('/callback', async (req, res) => {
   const { code, state, error } = req.query;
-  console.log('Entering /callback:', { code, state, error });
-  if (error) {
-    console.error('Spotify auth error:', error);
-    return res.redirect('/');
-  }
-  if (!code || !state) {
-    console.error('Missing code or state:', { code, state });
-    return res.status(400).json({ code: 400, message: 'Missing authorization code or state' });
-  }
-  const codeVerifier = req.session.codeVerifier;
-  const storedState = req.session.state;
-  if (!codeVerifier || state !== storedState) {
-    console.error('Invalid or expired state:', { state, storedState });
-    return res.status(400).json({ code: 400, message: 'Invalid or expired state parameter' });
+  if (error) return res.redirect('/');
+  if (!code || !state || state !== req.session.state || !req.session.codeVerifier) {
+    return res.status(400).json({ code: 400, message: 'Invalid or expired state' });
   }
 
   try {
@@ -303,25 +240,24 @@ app.get('/callback', async (req, res) => {
         code,
         redirect_uri: process.env.SPOTIFY_REDIRECT_URI,
         client_id: process.env.SPOTIFY_CLIENT_ID,
-        code_verifier: codeVerifier
+        code_verifier: req.session.codeVerifier
       })
     });
+
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('Token exchange failed:', errorData);
       throw new Error(errorData.error_description || 'Token exchange failed');
     }
+
     const data = await response.json();
     spotifyApi.setAccessToken(data.access_token);
     spotifyApi.setRefreshToken(data.refresh_token || '');
     req.session.accessToken = data.access_token;
     req.session.refreshToken = data.refresh_token;
-    console.log('Authentication successful, access token set:', data.access_token);
     res.redirect('/playlists');
-    console.log('Redirecting to /playlists');
   } catch (error) {
-    console.error('Callback error:', error.message);
-    res.status(400).json({ code: 400, message: `Authentication failed: ${error.message}` });
+    console.error('Callback error:', error);
+    res.status(400).json({ code: 400, message: 'Authentication failed' });
   }
 });
 
@@ -332,7 +268,6 @@ app.get('/checkout', requireAuth, async (req, res) => {
 
   try {
     const user = await retry(() => spotifyApi.getMe());
-    console.log('Checkout userId:', user.body.id); // Fix 4: Log userId
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
@@ -344,47 +279,36 @@ app.get('/checkout', requireAuth, async (req, res) => {
         quantity: 1
       }],
       mode: 'payment',
-      success_url: `${process.env.BASE_URL || 'http://localhost:5173'}/success?session_id={CHECKOUT_SESSION_ID}&setId=${setId}&userId=${user.body.id}`,
-      cancel_url: `${process.env.BASE_URL || 'http://localhost:5173'}/playlists`
+      success_url: `${process.env.BASE_URL}/success?session_id={CHECKOUT_SESSION_ID}&setId=${setId}&userId=${user.body.id}`,
+      cancel_url: `${process.env.BASE_URL}/playlists`
     });
-    console.log('Stripe success_url:', session.success_url); // Fix 4: Log success_url
     res.json({ url: session.url });
   } catch (error) {
-    console.error('Checkout error:', error.message);
+    console.error('Checkout error:', error);
     res.status(500).json({ code: 500, message: 'Checkout failed' });
   }
 });
 
 app.get('/success', async (req, res) => {
   const { session_id, setId, userId } = req.query;
-  console.log('Success route params:', { session_id, setId, userId }); // Fix 4: Log params
-  console.log('Session in /success:', {
-    sessionId: req.sessionID,
-    accessToken: req.session.accessToken,
-    refreshToken: req.session.refreshToken
-  }); // Fix 2: Detailed session logging
   if (!playlistSets[setId] || !session_id || !userId) return res.redirect('/playlists');
 
   try {
     const session = await stripe.checkout.sessions.retrieve(session_id);
-    console.log('Stripe session:', session); // Fix 4: Log session
     if (session.payment_status === 'paid') {
-      console.log('Inserting purchase:', { userId, setId, purchaseDate: Date.now() }); // Fix 4: Log insert
       await pool.query(
         'INSERT INTO purchases (userId, setId, purchaseDate) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
         [userId, setId, Date.now()]
       );
-      console.log('Purchase inserted successfully');
     }
     res.redirect(`/playlists?highlight=${setId}`);
   } catch (error) {
-    console.error('Success error:', error.message);
+    console.error('Success error:', error);
     res.redirect('/playlists');
   }
 });
 
 app.post('/save-to-spotify', requireAuth, async (req, res) => {
-  console.log('Entering /save-to-spotify, setId:', req.body.setId);
   const { setId } = req.body;
   const set = playlistSets[setId];
   if (!set) return res.status(400).json({ code: 400, message: 'Invalid set' });
@@ -396,7 +320,7 @@ app.post('/save-to-spotify', requireAuth, async (req, res) => {
     const isFree = setIndex >= 0 && setIndex < 10;
 
     if (!isFree) {
-      const purchase = (await pool.query('SELECT setId FROM purchases WHERE userId = $1 AND setId = $2', [userId, setId])).rows[0];
+      const purchase = (await pool.query('SELECT setid FROM purchases WHERE userId = $1 AND setId = $2', [userId, setId])).rows[0];
       if (!purchase) return res.status(403).json({ code: 403, message: 'Set not purchased' });
     }
 
@@ -417,7 +341,7 @@ app.post('/save-to-spotify', requireAuth, async (req, res) => {
     }
     res.json({ success: true, playlistId: newPlaylistIds[0] });
   } catch (error) {
-    console.error('Save error:', error.message);
+    console.error('Save error:', error);
     const status = error.statusCode || 500;
     res.status(status).json({
       code: status,
@@ -429,11 +353,10 @@ app.post('/save-to-spotify', requireAuth, async (req, res) => {
 app.get('/data-request', requireAuth, async (req, res) => {
   try {
     const user = await retry(() => spotifyApi.getMe());
-    const userId = user.body.id;
-    const purchases = (await pool.query('SELECT setId, purchaseDate FROM purchases WHERE userId = $1', [userId])).rows;
-    res.json({ userId, purchases });
+    const purchases = (await pool.query('SELECT setid, purchaseDate FROM purchases WHERE userId = $1', [user.body.id])).rows;
+    res.json({ userId: user.body.id, purchases });
   } catch (error) {
-    console.error('Data request error:', error.message);
+    console.error('Data request error:', error);
     res.status(500).json({ code: 500, message: 'Failed to retrieve data' });
   }
 });
@@ -457,10 +380,8 @@ app.post('/delete-data', (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error('Server error:', err.stack);
-  if (!res.headersSent) {
-    res.status(500).json({ code: 500, message: 'Internal server error' });
-  }
+  console.error('Server error:', err);
+  res.status(500).json({ code: 500, message: 'Internal server error' });
 });
 
 const PORT = process.env.PORT || 5173;
