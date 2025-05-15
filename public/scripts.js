@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Fix 3: Log purchasedSets from data attribute
   const purchasedSets = JSON.parse(document.body.dataset.purchasedSets || '[]');
-  console.log('Client-side purchasedSets:', purchasedSets);
 
   buyButtons.forEach(button => {
     button.addEventListener('click', async () => {
