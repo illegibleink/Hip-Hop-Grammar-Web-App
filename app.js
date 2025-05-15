@@ -178,7 +178,6 @@ app.get('/playlists', requireAuth, async (req, res) => {
   try {
     const user = await retry(() => spotifyApi.getMe());
     const userId = user.body.id;
-    console.log('User fetched:', userId); // Fix 4: Log userId
 
     // Fix 1: Use transaction for database query
     const client = await pool.connect();
@@ -199,9 +198,7 @@ app.get('/playlists', requireAuth, async (req, res) => {
 
     // Fix 1: Use correct case for setid
     const purchasedSets = new Set(purchases.map(p => p.setid));
-    console.log('purchasedSets before rendering:', Array.from(purchasedSets)); // Fix 3: Log purchasedSets
-    console.log('Serialized purchasedSets:', JSON.stringify(Array.from(purchasedSets))); // Fix 3: Log serialized data
-
+    
     const enrichedSets = await Promise.all(
       Object.entries(playlistSets).map(async ([setId, set], index) => {
         const playlists = Array.isArray(set.playlists) ? set.playlists : (set.playlists ? [set.playlists] : []);
