@@ -443,20 +443,31 @@ app.get('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
 });
 
-app.post('/delete-data', (req, res) => {
-  if (spotifyApi.getAccessToken()) {
-    pool.query('DELETE FROM purchases WHERE userId = $1', [spotifyApi.getAccessToken()], (err) => {
-      if (err) console.error('Delete purchases error:', err);
-    });
-  }
-  spotifyApi.setAccessToken(null);
-  req.session.destroy(() => res.redirect('/?success=data-deleted'));
-});
+app.post('/delete-data', requireAuth, async (req, res) => {
+  try {
+    const user = await retry(() => spotifyApi.getMe());
+    const userId = user.body.id;
 
-app.use((err, req, res, next) => {
-  console.error('Server error:', err.stack);
-  if (!res.headersSent) {
-    res.status(500).json({ code: 500, message: 'Internal server error' });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM purchases WHERE userId = $1', [userId]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Delete data error:', error);
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    spotifyApi.setAccessToken(null);
+    req.session.destroy(() => {
+      res.redirect('/?message=data-deleted');
+    });
+  } catch (error) {
+    console.error('Delete data error:', error);
+    res.redirect('/?message=delete-failed');
   }
 });
 
