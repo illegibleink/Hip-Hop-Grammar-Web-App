@@ -16,9 +16,7 @@ console.log(`Loaded ${Object.keys(playlistSets).length} playlist sets`);
 
 const app = express();
 
-// Trust Heroku's proxy for rate limiting
 app.set('trust proxy', 1);
-
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
@@ -146,18 +144,49 @@ const requireAuth = async (req, res, next) => {
   }
 };
 
-// Routes
+// Test session route (Fix 2: Debug session state)
+app.get('/test-session', async (req, res) => {
+  req.session.test = 'test-value';
+  console.log('Test session set:', req.session);
+  try {
+    const sessions = await pool.query('SELECT * FROM session');
+    console.log('Session table contents:', sessions.rows);
+    res.json({ session: req.session, dbSessions: sessions.rows });
+  } catch (error) {
+    console.error('Test session error:', error);
+    res.status(500).json({ error: 'Failed to access session store' });
+  }
+});
+
 app.get('/', (req, res) => res.render('launch'));
 
 app.get('/playlists', requireAuth, async (req, res) => {
   console.log('Entering /playlists, token:', spotifyApi.getAccessToken());
+  console.log('Session in /playlists:', req.session); // Fix 2: Log session
   try {
     const user = await retry(() => spotifyApi.getMe());
-    console.log('User fetched:', user.body.id);
     const userId = user.body.id;
+    console.log('User fetched:', userId); // Fix 4: Log userId
 
-    const purchases = (await pool.query('SELECT setId FROM purchases WHERE userId = $1', [userId])).rows;
+    // Fix 1: Use transaction for database query
+    const client = await pool.connect();
+    let purchases;
+    try {
+      await client.query('BEGIN');
+      await client.query('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+      purchases = (await client.query('SELECT setId FROM purchases WHERE userId = $1', [userId])).rows;
+      console.log('Purchases retrieved:', purchases); // Fix 1: Log query results
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Database query error:', error);
+      throw error;
+    } finally {
+      client.release();
+    }
+
     const purchasedSets = new Set(purchases.map(p => p.setId));
+    console.log('purchasedSets before rendering:', Array.from(purchasedSets)); // Fix 3: Log purchasedSets
 
     const enrichedSets = await Promise.all(
       Object.entries(playlistSets).map(async ([setId, set], index) => {
@@ -174,7 +203,7 @@ app.get('/playlists', requireAuth, async (req, res) => {
 
     res.render('index', {
       playlistSets: Object.fromEntries(enrichedSets),
-      purchasedSets: Array.from(purchasedSets),
+      purchasedSets: Array.from(purchasedSets), // Fix 3: Ensure array is passed
       stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
       userId,
       highlightSetId: req.query.highlight
@@ -289,6 +318,7 @@ app.get('/checkout', requireAuth, async (req, res) => {
 
   try {
     const user = await retry(() => spotifyApi.getMe());
+    console.log('Checkout userId:', user.body.id); // Fix 4: Log userId
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
@@ -303,6 +333,7 @@ app.get('/checkout', requireAuth, async (req, res) => {
       success_url: `${process.env.BASE_URL || 'http://localhost:5173'}/success?session_id={CHECKOUT_SESSION_ID}&setId=${setId}&userId=${user.body.id}`,
       cancel_url: `${process.env.BASE_URL || 'http://localhost:5173'}/playlists`
     });
+    console.log('Stripe success_url:', session.success_url); // Fix 4: Log success_url
     res.json({ url: session.url });
   } catch (error) {
     console.error('Checkout error:', error.message);
@@ -312,15 +343,20 @@ app.get('/checkout', requireAuth, async (req, res) => {
 
 app.get('/success', async (req, res) => {
   const { session_id, setId, userId } = req.query;
+  console.log('Success route params:', { session_id, setId, userId }); // Fix 4: Log params
+  console.log('Session in /success:', req.session); // Fix 2: Log session
   if (!playlistSets[setId] || !session_id || !userId) return res.redirect('/playlists');
 
   try {
     const session = await stripe.checkout.sessions.retrieve(session_id);
+    console.log('Stripe session:', session); // Fix 4: Log session
     if (session.payment_status === 'paid') {
+      console.log('Inserting purchase:', { userId, setId, purchaseDate: Date.now() }); // Fix 4: Log insert
       await pool.query(
         'INSERT INTO purchases (userId, setId, purchaseDate) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
         [userId, setId, Date.now()]
       );
+      console.log('Purchase inserted successfully');
     }
     res.redirect(`/playlists?highlight=${setId}`);
   } catch (error) {

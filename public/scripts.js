@@ -17,10 +17,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Stripe and playlist logic (unchanged, just streamlined)
+  // Stripe and playlist logic
   const stripe = Stripe(document.body.dataset.stripeKey || '');
   const buyButtons = document.querySelectorAll('.buy-now');
   const saveButtons = document.querySelectorAll('.save-to-spotify');
+
+  // Fix 3: Log purchasedSets from data attribute
+  const purchasedSets = JSON.parse(document.body.dataset.purchasedSets || '[]');
+  console.log('Client-side purchasedSets:', purchasedSets);
 
   buyButtons.forEach(button => {
     button.addEventListener('click', async () => {
